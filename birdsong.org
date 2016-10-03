@@ -1,0 +1,5 @@
+#+STARTUP: hidestars
+#+TODO: TASK TODO DEP IN-PROGRESS WAITING Query PROJECT DONE 
+#+TAGS: 
+
+Birdsong notes
