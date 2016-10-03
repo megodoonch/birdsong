@@ -109,6 +109,11 @@ grammar_copy_probs = [("S",  [(["NP","VP"],False,1.)]),
            ("Det",[(["a"],False,1.)])]
 
 
+grammar_ambig = [("S",[(["S","S"],False),(["a"],False)])]
+grammar_ambig_probs = [("S",[(["S","S"],False,0.5),(["a"],False,0.5)])]
+
+
+
 def make_rule_probs(g):
     """Given a grammar with rhss (rhs,isCopy,prob) makes dictionary of log rule probs. 
     Keys are strings built from rule names.
@@ -121,19 +126,35 @@ def make_rule_probs(g):
 
 
 probs = make_rule_probs(grammar_copy_probs)
+#probs = make_rule_probs(grammar_ambig_probs)
 
 
 
 sentence = "she eats a fish with a fork".split(" ")
 
+#sentence = "a a a a a a a a a a a a a a a a a".split(" ")
+
+#list_times=[]
+#for i in range(1000):
+#    list_times.append(ckypy.parse(sentence,grammar_ambig))
+#    i+=1
+
+#set_times=[]
+#for i in range(1000):
+#    set_times.append(ckypy.parse_set(sentence,grammar_ambig) )
+#    i+=1
+#
+#print (sum(list_times)/float(len(list_times)))
+#print (sum(set_times)/float(len(set_times)))
 
 
 
-chart,backpoints = ckypy.parse(sentence,grammar_copy)
+
+chart,backpoints = ckypy.parse_set(sentence,grammar_ambig)
 
 # ckypy.print_chart(chart)
 
-parses = ckypy.collect_trees(0,len(sentence),"S",chart,backpoints,grammar,sentence)
+parses = ckypy.collect_trees(0,len(sentence),"S",chart,backpoints,grammar_ambig,sentence)
 
 
 for i,parse in enumerate(parses):

@@ -64,8 +64,12 @@ def print_chart(ch):
 
 
 
+
+import time
+
 def parse(sentence,grammar):
 
+   # t0 = time.time()
     # Initialise the chart
 
     n = len(sentence)
@@ -90,7 +94,8 @@ def parse(sentence,grammar):
         for i,(lhs,rhss) in enumerate(grammar):
             for rhs,_ in rhss:
                 if rhs==[sentence[j-1]]:
-                    chart[j-1][j].append(lhs)
+                    if lhs not in chart[j-1][j]:
+                        chart[j-1][j].append(lhs)
 
 
         # Loop over rows, backwards
@@ -112,12 +117,14 @@ def parse(sentence,grammar):
                                     valid_parse = True # if this is not a copy rule, we can just continue
 
                                 if valid_parse:
-                                    chart[i][j].append( lhs )
+                                    if lhs not in chart[i][j]:
+                                        chart[i][j].append( lhs )
                                     backpoints[i][j][m].append( (k,rhsB,rhsC,isCopy) )
 
 
+    #t1 = time.time()
+    #print t1-t0
     return (chart,backpoints)
-
 
 
 
