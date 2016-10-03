@@ -1,0 +1,6 @@
+*.pyc
+*~
+
+parse_*.pdf
+
+.tmp.dot
