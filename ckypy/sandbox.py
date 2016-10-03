@@ -79,8 +79,53 @@ grammar = [("S",  [["NP","VP"]]),
            ("Det",[["a"]])]
 
 
+grammar_copy = [("S",  [(["NP","VP"],False)]),
+           ("VP", [(["VP","PP"],False),
+                   (["V","NP"],False),
+                   (["eats"],False)]),
+           ("PP", [(["P","NP"],False)]),
+           ("NP", [(["NP","PP"],False),
+                   (["Det","N"],False),
+                   (["she"],False)]),
+           ("V" , [(["eats"],False)]),
+           ("P" , [(["with"],False)]),
+           ("N" , [(["fish"],False),
+                   (["fork"],False)]),
+           ("Det",[(["a"],False)])]
 
 
+grammar_copy_probs = [("S",  [(["NP","VP"],False,1.)]),
+           ("VP", [(["VP","PP"],False,0.25),
+                   (["V","NP"],False,0.5),
+                   (["eats"],False,0.25)]),
+           ("PP", [(["P","NP"],False,1.)]),
+           ("NP", [(["NP","PP"],False,0.3),
+                   (["Det","N"],False,0.4),
+                   (["she"],False,0.3)]),
+           ("V" , [(["eats"],False,1.)]),
+           ("P" , [(["with"],False,1.)]),
+           ("N" , [(["fish"],False,0.4),
+                   (["fork"],False,0.6)]),
+           ("Det",[(["a"],False,1.)])]
+
+
+def make_rule_probs(g):
+    """Given a grammar with rhss (rhs,isCopy,prob) makes dictionary of log rule probs. 
+    Keys are strings built from rule names."""
+    rule_probs={}
+    for (lhs,rhss) in g:
+        for (rhs,isCopy,p) in rhss:
+            if len(rhs)==1:
+                rule_string = "%s->%s"%(lhs,rhs[0])
+            elif len(rhs)==2:
+                rule_string = "%s->%s.%s"%(lhs,rhs[0],rhs[1])
+            if isCopy:
+                rule_string = rule_string.append(".copy")
+            rule_probs[rule_string]=np.log(p)
+    return rule_probs
+
+
+probs = make_rule_probs(grammar_copy_probs)
 
 
 
@@ -89,7 +134,7 @@ sentence = "she eats a fish with a fork".split(" ")
 
 
 
-chart,backpoints = ckypy.parse(sentence,grammar)
+chart,backpoints = ckypy.parse(sentence,grammar_copy)
 
 # ckypy.print_chart(chart)
 
@@ -101,6 +146,7 @@ for i,parse in enumerate(parses):
     ckypy.tree_to_pdf(parse,"parse_%i.pdf"%i)
 
 
+ckypy.probability("S",chart,backpoints,grammar_copy,sentence,probs)
 
 
 
@@ -111,7 +157,7 @@ for i,parse in enumerate(parses):
 # How could it have been built?
 
 
-trees = collect_trees(0,len(sentence),"S",chart,backpoints,sentence)
+trees = ckypy.collect_trees(0,len(sentence),"S",chart,backpoints,sentence)
 
 
 

@@ -286,8 +286,9 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
     #  being of category identified by the LHS of rule r.
     # This will enable us not to have to re-do such calculations later in our recursions.
     n = len(sentence)
-    r = len(grammar)
-    log_probs = np.zeros( (n, n+1, r), dtype="Float64" )
+    r = len(grammar) #number of lhs
+    log_probs = np.zeros( (n, n+1, r), dtype="Float64" ) # makes an n x n+1 x r array of 0.'s
+    # We store the probability that each category (LHS) spans every interval within the sentence
 
 
     def get_prob(i,j,category):
@@ -306,6 +307,7 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
         #    print "chart[%i][%i]"%(i,j)
         #    print chart[i][j]
 
+        # get the index of the category as lhs in the grammar so we know where to put its probs in the innermost array 
         category_n = [ lhs for (lhs,_) in grammar ].index(category)
 
         if log_probs[i][j][category_n]!=0: # if we've already calculated this, just return the cached number
@@ -316,27 +318,29 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
             # So it can't be a copy rule at least, whew!
 
             # Ok, this is admittedly ugly but it will do for now
+            # make a string that represents the rule. This will match a key in the ruleprobs dict.
             lhs,_ = grammar[category_n]
             rhs   = ".".join(sentence[i:j])
             rule = "%s->%s"%(lhs,rhs)
 
             # We've got the p; cache it and return it.
-            logp =  ruleprobs[rule]
-            log_probs[i][j][category_n] = logp
+            logp =  ruleprobs[rule] #get it
+            log_probs[i][j][category_n] = logp #add it to log_probs
             return logp
             
-        else:
+        else: # if it's got backpointers
             log_prob = None
 
             # For each of the reconstructions, calculate the prob (we have to ADD those because they are "ambiguities")
             for (k,rhsB,rhsC,isCopy) in backpoints[i][j][category_n]:
 
                 # First let's reconstruct each of the subtrees
+                # I think this is where the cache comes in. We're about to get all recursive on your ass.
                 prob_rhsB = get_prob(i,k,rhsB)
                 prob_rhsC = get_prob(k,j,rhsC)
 
                 # Ok, then we should combine all reconstructions from both sides of the rule
-                rulestr = "%s->%s.%s"%(category,rhsB,rhsC)
+                rulestr = "%s->%s.%s"%(category,rhsB,rhsC) # make the key for look-up in ruleprobs
                 if isCopy: rulestr+=".copy"
                 ruleprob = ruleprobs[rulestr]
 
@@ -355,6 +359,7 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
                     
             log_probs[i][j][category_n] = log_prob
             return log_prob
+            #we define get_prob not only to update log_probs but also to return the prob of the interval and category (usually the whole sentence and the start category) so that the main function can return that probability
 
     
     return log_probs,get_prob(from_i,to_i,category)
