@@ -40,9 +40,17 @@ def log_add(logx,logy):
     return logx + np.log(1.0 + np.exp(negdiff))
  
 
+def rule2string(lhs,rhs,isCopy=False):
+    rule_string=""
+    if len(rhs)==1:
+        rule_string += "%s->%s"%(lhs,rhs[0])
+    elif len(rhs)==2:
+        rule_string += "%s->%s.%s"%(lhs,rhs[0],rhs[1])
+    if isCopy:
+        rule_string+=".copy"
+    return rule_string
 
-
-
+rule2string("A",["hi"],False)
 
 
 def print_chart(ch):
@@ -142,7 +150,8 @@ def collect_trees(from_i,to_i,category,chart,backpoints,grammar,sentence):
             # If there are no back pointers, this must be a lexical item.
             lhs,_ = grammar[category_n]
             rhs   = ".".join(sentence[i:j])
-            return [("%s->%s"%(lhs,rhs),[])]
+            return [(rule2string(lhs,[rhs],False),[])]
+            #return [("%s->%s"%(lhs,rhs),[])]
             # else something is seriously wrong!
             
         else:
@@ -156,8 +165,8 @@ def collect_trees(from_i,to_i,category,chart,backpoints,grammar,sentence):
                 trees_rhsC = reconstruct(k,j,rhsC)
 
                 # Ok, then we should combine all reconstructions from both sides of the rule
-                rulestr = "%s->%s.%s"%(category,rhsB,rhsC)
-                if isCopy: rulestr+=".copy"
+                rulestr = rule2string(category,[rhsB,rhsC],isCopy)#"%s->%s.%s"%(category,rhsB,rhsC)
+                #if isCopy: rulestr+=".copy"
                 for reconstrB in trees_rhsB:
 
                     if isCopy:
@@ -321,7 +330,7 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
             # make a string that represents the rule. This will match a key in the ruleprobs dict.
             lhs,_ = grammar[category_n]
             rhs   = ".".join(sentence[i:j])
-            rule = "%s->%s"%(lhs,rhs)
+            rule = rule2string(lhs,[rhs],False) #"%s->%s"%(lhs,rhs)
 
             # We've got the p; cache it and return it.
             logp =  ruleprobs[rule] #get it
@@ -340,8 +349,8 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
                 prob_rhsC = get_prob(k,j,rhsC)
 
                 # Ok, then we should combine all reconstructions from both sides of the rule
-                rulestr = "%s->%s.%s"%(category,rhsB,rhsC) # make the key for look-up in ruleprobs
-                if isCopy: rulestr+=".copy"
+                rulestr = rule2string(category,[rhsB,rhsC],isCopy) #"%s->%s.%s"%(category,rhsB,rhsC) # make the key for look-up in ruleprobs
+                #if isCopy: rulestr+=".copy"
                 ruleprob = ruleprobs[rulestr]
 
                 if isCopy:

@@ -111,17 +111,12 @@ grammar_copy_probs = [("S",  [(["NP","VP"],False,1.)]),
 
 def make_rule_probs(g):
     """Given a grammar with rhss (rhs,isCopy,prob) makes dictionary of log rule probs. 
-    Keys are strings built from rule names."""
+    Keys are strings built from rule names.
+    We use the same method for making keys as is used in the parser in case we want to change it"""
     rule_probs={}
     for (lhs,rhss) in g:
         for (rhs,isCopy,p) in rhss:
-            if len(rhs)==1:
-                rule_string = "%s->%s"%(lhs,rhs[0])
-            elif len(rhs)==2:
-                rule_string = "%s->%s.%s"%(lhs,rhs[0],rhs[1])
-            if isCopy:
-                rule_string = rule_string.append(".copy")
-            rule_probs[rule_string]=np.log(p)
+            rule_probs[ckypy.rule2string(lhs,rhs,isCopy)]=np.log(p)
     return rule_probs
 
 
@@ -149,6 +144,7 @@ for i,parse in enumerate(parses):
 ckypy.probability("S",chart,backpoints,grammar_copy,sentence,probs)
 
 
+log_probs = np.zeros( (5, 5+1, 10), dtype="Float64" )
 
 
 # Now let's do tree collection
