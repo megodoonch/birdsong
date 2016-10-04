@@ -569,6 +569,15 @@ def tree_to_pdf(tree,fname):
     return
 
 
+def make_rule_probs(g):
+    """Given a grammar with rhss (rhs,isCopy,prob) makes dictionary of log rule probs. 
+    Keys are strings built from rule names.
+    We use the same method for making keys as is used in the parser in case we want to change it"""
+    rule_probs={}
+    for (lhs,rhss) in g:
+        for (rhs,isCopy,p) in rhss:
+            rule_probs[rule2string(lhs,rhs,isCopy)]=np.log(p)
+    return rule_probs
 
 
 
