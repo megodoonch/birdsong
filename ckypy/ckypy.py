@@ -88,9 +88,10 @@ def parse(sentence,grammar):
     backpoints = [ [ [ [] for _ in range(r) ] for _ in range(n+1) ] for _ in range(n) ]
 
     # Lots of inspiration for this came from courses.washington.edu/ling571/ling571_fall_2010/slides/cky_cnf.pdf
-    for j in range(1,n+1):
+    #this is a different implementation from Meaghan's earlier version that started by initialising the diagonal and then looped over rows.
+    for j in range(1,n+1): ## loop over columns, fill them from the bottom up
 
-        # Put the initial values
+        # Put the initial values for the diagonal cell in this column
         for i,(lhs,rhss) in enumerate(grammar):
             for rhs,_ in rhss:
                 if rhs==[sentence[j-1]]:
@@ -98,10 +99,10 @@ def parse(sentence,grammar):
                         chart[j-1][j].append(lhs)
 
 
-        # Loop over rows, backwards
+        # Loop over rows, backwards (bottom-up)
         for i in range(j-2,-1,-1):
 
-            for k in range(i+1,j): # loop over contents of the cell
+            for k in range(i+1,j): # loop over contents of the cell -- partitions, I guess?
 
                 for m,(lhs,rhss) in enumerate(grammar):
                     for rhs,isCopy in rhss:
