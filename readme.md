@@ -23,8 +23,8 @@ Catalan numbers show up a lot in counting recursive things. From Wikipedia:
 	- Successive applications of a binary operator can be represented in terms of a full binary tree. (A rooted binary tree is full if every vertex has either two children or no children.) It follows that Cn is the number of full binary trees with n + 1 leaves
 
 * Fix copies in parser
-  * Right now, a copy needs to be buildable as a constituent. This is not how copies work in the grammar I used in the earlier version. Rather, a copy is like a silent head that copies material to its left, even if that material isn't a constituent.
-  * the way I did this was to populate the whole chart with copy heads, since a copy could be anywhere. Unlike real silent heads, the copy could span several words, so it doesn't just go on the diagonal
+	* Right now, a copy needs to be buildable as a constituent. This is not how copies work in the grammar I used in the earlier version. Rather, a copy is like a silent head that copies material to its left, even if that material isn't a constituent.
+	* the way I did this was to populate the whole chart with copy heads, since a copy could be anywhere. Unlike real silent heads, the copy could span several words, so it doesn't just go on the diagonal
 * Make Notebook to illustrate parser
 * Add outside probabilities
 * ...
