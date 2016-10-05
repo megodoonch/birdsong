@@ -109,107 +109,33 @@ grammar_copy_probs = [("S",  [(["NP","VP"],False,1.)]),
            ("Det",[(["a"],False,1.)])]
 
 
-grammar_ambig = [("S",[(["S","S"],False),(["a"],False)])]
-grammar_ambig_probs = [("S",[(["S","S"],False,0.5),(["a"],False,0.5)])]
+grammar_ambig = [("S",[(["S","S"]),(["a"])])]
+grammar_ambig_probs = [("S",[(["S","S"],0.5),(["a"],0.5)])]
 
-grammar_ambig_copy = [("S",[["S","S"],["a"],["S","copy"],["copy","S"]]),("copy",[["copy"]])]
-grammar_ambig_copy_probs = [("S",[(["S","S"],0.4),(["a"],0.3),(["S","copy"],0.3)])]
-
-
-def insert_copies(chart,s):
-    n=len(s)
-    for j in range(2,n+1):
-        print "j=",j
-        for i in range(j-1,j/2-1,-1):
-            print i,j
-            k=2*i-j #start of potential copied material
-            print "k=",k
-            if k>=0 and s[k:i]==s[i:j]:
-                print "copy"
-                if "copy" not in chart[i][j]:
-                    chart[i][j].append("copy")
-    return chart
-                        
-
-chart      = [ [ [] for _ in range(n+1) ] for _ in range(n) ]
-
-
-
-def parse(sentence,grammar):
-
-   # t0 = time.time()
-    # Initialise the chart
-
-    n = len(sentence)
-    r = len(grammar)
-
-    # The CKY Chart
-    chart      = [ [ [] for _ in range(n+1) ] for _ in range(n) ]
-
-    # The back pointers: tells us how we made things.
-    # in particular, backpoints[i][j][m] tells us all the ways
-    # in which we made an item of "category" m (the m-th left-hand side in the grammar)
-    # each element (k,catB,catC) tells us that made the item using the m-th rule,
-    # from categories B and C (that should identify uniquely the rule used)
-    # where B was from i to k and C was from k to j.
-
-    backpoints = [ [ [ [] for _ in range(r) ] for _ in range(n+1) ] for _ in range(n) ]
-
-    # Lots of inspiration for this came from courses.washington.edu/ling571/ling571_fall_2010/slides/cky_cnf.pdf
-    #this is a different implementation from Meaghan's earlier version that started by initialising the diagonal and then looped over rows.
-    for j in range(1,n+1): ## loop over columns, fill them from the bottom up
-        # Put the initial values for the diagonal cell in this column
-        for i,(lhs,rhss) in enumerate(grammar):
-            for rhs in rhss:
-                rhs=rhs[0]
-                if rhs==sentence[j-1]:
-                    if lhs not in chart[j-1][j]:
-                        chart[j-1][j].append(lhs)
-                        backpoints[j-1][j][i].append((0,rhs))
-
-        #check if the word is a copy of the previous word
-        if j>1 and sentence[j-2]==sentence[j-1]:
-            chart[j-1][j].append("copy")
-            backpoints[j-1][j][-1].append((0,"copy"))
-
-        
-
-        # Loop over rows, backwards (bottom-up)
-        for i in range(j-2,-1,-1): # we start at j-2 because we already did the diagonal
-
-            #deal with copies. We don't need the partitions for this.
-            if i >= j/2:
-                print i,j
-                start=2*i-j #start of potential copied material
-                print "start=",start
-                if start>=0 and s[start:i]==s[i:j]:
-                    print "copy"
-                    chart[i][j].append("copy")
-                    backpoints[i][j][-1].append((0,"copy"))
-
-                    
-
-            for k in range(i+1,j): # loop over contents of the cell -- partitions, I guess?
-
-                for m,(lhs,rhss) in enumerate(grammar):
-                    for rhs in rhss:
-                        if len(rhs)==2: # only do non-terminals
-                            (rhsB,rhsC)=rhs
-
-                            # Check whether we have the constituents previously recognised
-                            if rhsB in chart[i][k] and rhsC in chart[k][j]:
-                                if lhs not in chart[i][j]:
-                                    chart[i][j].append( lhs )
-                                backpoints[i][j][m].append( (k,rhsB,rhsC) )
-
-
-    #t1 = time.time()
-    #print t1-t0
-    return (chart,backpoints)
+grammar_ambig_copy = [("S",[["S","S"],["a"],["S","Copy"],["Copy","S"]]),("Copy",[["copy"]])]
+grammar_ambig_copy_probs = [("S",[(["S","S"],0.2),(["a"],0.3),(["S","Copy"],0.2),(["Copy","S"],0.3)]),("Copy",[(["copy"],1.)])]
 
 
 
 
+
+def rule2string(lhs,rhs):
+    rule_string=""
+    if len(rhs)==1:
+        rule_string += "%s->%s"%(lhs,rhs[0])
+    elif len(rhs)==2:
+        rule_string += "%s->%s.%s"%(lhs,rhs[0],rhs[1])
+    return rule_string
+
+def make_rule_probs(g):
+    """Given a grammar with rhss (rhs,isCopy,prob) makes dictionary of log rule probs. 
+    Keys are strings built from rule names.
+    We use the same method for making keys as is used in the parser in case we want to change it"""
+    rule_probs={}
+    for (lhs,rhss) in g:
+        for (rhs,p) in rhss:
+            rule_probs[rule2string(lhs,rhs)]=np.log(p)
+    return rule_probs
 
 
 
