@@ -34,3 +34,11 @@ Catalan numbers show up a lot in counting recursive things. From Wikipedia:
 
 * Main difference in parser design between M&F: M's Ocaml code puts all the functionality (up to and including outside probabilities) into the same CKY chart, while F makes a bunch of separate charts
 * we're not sure if F's approach is better or not.
+
+
+## Deep thinking
+
+* To some extent, our estimate of how much copying is going on depends on where we place sentence boundaries. Imagine that two identical "sentences" are classified as two sentences, then indeed there is no copying necessary. However, if the two were treated as a single sentence then you need copying. (This is something that Ed thinks about too).
+
+
+
