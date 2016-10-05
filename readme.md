@@ -2,10 +2,10 @@
 
 
 ## File structure
-* `ckypy` contains the basic CKY parser
-  * `input` contains output from the previous OCaml script so that we can easily extract the rules
-  * `read_cath8_parses.py` reads `input` and does something with it.
-  * `ckypy.py` this is the parser proper, imported in `read_cath8_parses.py`.
+* `ckypy/` contains the basic CKY parser
+	* `input` contains output from the previous OCaml script so that we can easily extract the rules
+	* `read_cath8_parses.py` reads `input` and does something with it.
+	* `ckypy.py` this is the parser proper, imported in `read_cath8_parses.py`.
   
 
 
