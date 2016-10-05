@@ -50,7 +50,6 @@ def rule2string(lhs,rhs,isCopy=False):
         rule_string+=".copy"
     return rule_string
 
-rule2string("A",["hi"],False)
 
 
 def print_chart(ch):
@@ -373,7 +372,8 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
                                        # mind you, the probability of this item is the PRODUCT of the two children,
                                        # hence the addition here, and of course the probability of applying the rule.
                                        prob_rhsB+prob_rhsC+ruleprob)
-                    
+ 
+                   
             log_probs[i][j][category_n] = log_prob
             return log_prob
             #we define get_prob not only to update log_probs but also to return the prob of the interval and category (usually the whole sentence and the start category) so that the main function can return that probability
