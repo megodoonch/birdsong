@@ -7,6 +7,7 @@
 
 
 import numpy as np
+from common import *
  
 """
 sources:
@@ -15,65 +16,46 @@ https://facwiki.cs.byu.edu/nlp/index.php/Log_Domain_Computations
 https://gist.github.com/longouyang/3504979
 http://mikelove.wordpress.com/2011/06/06/log-probabilities-trick/
 """
-def log_add(logx,logy):
-    # This adds two log-transformed variables,
-    # taking care of the underflow that you usually find when you do this
-
-    if logx==None: # This is just a hack so that I can give a not-defined sum
-        return logy
-
-    # First, make X the maximum
-    if (logy > logx):
-        logx,logy = logy,logx
-        #temp = logx
-        #logx = logy
-        #logy = temp
-
-    # How far "down" is logY from logX?
-    negdiff = logy - logx
-    if negdiff < -30: # If it's small, we can just ignore logY altogether (it won't make much of a difference)
-        return logx
-        # However, in my case I can maybe keep it in because it will just become zero in the sum below.
-
-    # Otherwise, use some simple algebra to stay in the log domain
-    # (i.e. here we use log(X)+log(Y) = log(X)+log(1.0+exp(log(Y)-log(X)))
-    return logx + np.log(1.0 + np.exp(negdiff))
  
 
-def rule2string(lhs,rhs,isCopy=False):
-    rule_string=""
-    if len(rhs)==1:
-        rule_string += "%s->%s"%(lhs,rhs[0])
-    elif len(rhs)==2:
-        rule_string += "%s->%s.%s"%(lhs,rhs[0],rhs[1])
-    if isCopy:
-        rule_string+=".copy"
-    return rule_string
+def grammar2string_copy(grammar):
+    """
+    Prints a grammar as a readable string.
+    
+    Arguments:
+    grammar : a grammar with isCopy but no probabilities
+    """
+    s = ""
+    for (lhs,rhss) in grammar:
+        for (rhs,isCopy) in rhss:
+            s+=rule2string(lhs,rhs,isCopy)+"\n"
+    return s
+
+
+def grammar2string_copy_probs(grammar):
+    """
+    Prints a probabilistic grammar as a readable string.
+    
+    Arguments:
+    grammar : a grammar with probabilities and isCopy
+    """
+    s = ""
+    for (lhs,rhss) in grammar:
+        for (rhs,isCopy,p) in rhss:
+            s+=rule2string(lhs,rhs,isCopy)+" %.5f\n"%p
+    return s
+
+
+def mark_no_copy_rules(grammar):
+    """ Takes a 'simple' grammar where each rule is not marked as being a copy rule or not,
+    and returns the same grammar but with an extra field that marks that this rule is not a copy rule (False)
+    """
+    return [ (lhs,[ (r,False) for r in rhs ]) for (lhs,rhs) in grammar ]
 
 
 
-def print_chart(ch):
-    print "### Chart ###"
-    for i,row in enumerate(ch):
-        for j,col in enumerate(ch[i]):
-            if len(ch[i][j])>0:
-                print "(%i,%i)"%(i,j),ch[i][j]
-    print "### end Chart ###"
-
-def print_backpointers(ch):
-    g_length = len(ch[0][0])
-    print "### Backpointers ###"
-    for i,row in enumerate(ch):
-        for j,col in enumerate(ch[i]):
-            if any(len(ch[i][j][m])>0 for m in range(g_length)) :
-                print "(%i,%i)"%(i,j),ch[i][j]
-    print "### end Backpointers ###"
 
 
-
-
-
-import time
 
 def parse(sentence,grammar):
 
@@ -468,144 +450,6 @@ def n_parses_nocache(category,chart,backpoints,grammar,sentence,from_i=0,to_i=No
 
 
 
-
-
-
-
-def rules_used(parse):
-    # In a particular parse, give a listing of all the rules used.
-    # We just use a simple shorthand notation %s->%s.%s to identify
-    # each rule.
-
-    (rule,children) = parse
-
-    rules = []
-    for child in children:
-        rules += rules_used(child)
-
-    rules += [rule]
-    return rules
-
-
-
-
-
-
-def find_prob_from_parses(parses,ruleprobs,output_trees=False):
-
-    # Find the probability of a particular sentence from its parses.
-    # I.e. this will be untractable for big guys but I can use it to
-    # verify my faster implementation (using caching) on the smaller guys.
-
-    parse_probs = []
-
-    for i,parse in enumerate(parses):
-        
-        if output_trees:
-            tree_to_pdf(parse,'output/parse%05i.pdf'%i)
-
-        rules = rules_used(parse)
-        log_ps = map(lambda x: ruleprobs[x],rules)
-        parseprob = sum(log_ps) # the probability of the parse is simply the sum of the log probabilities of the rules used
-        parse_probs.append( parseprob )
-
-    # Add the probabilities of the parses, using a smart
-    # bit of algebra to prevent underflow 
-    # (essentially what we are trying to compute is log(exp(X)+exp(Y))).
-    total_prob = parse_probs[0]
-    for logp in parse_probs[1:]:
-        total_prob = log_add(total_prob,logp)
-
-    return total_prob
-
-
-
-
-
-
-def get_nodes_edges(tree,prefix=""):
-    # Given a particular tree, define a list of nodes and edges
-    # so that we can easily plot it later on.
-    # The prefix is a prefix that we give to node names so that we
-    # guarantee that they will be unique
-
-    (rule,children) = tree
-
-    thisnodename = "p%s"%prefix
-    nodes = [(thisnodename,rule)]
-    edges = []
-    for i,child in enumerate(children):
-        # Take over the nodes and edges from the children
-        childroot,n,newedges = get_nodes_edges(child,"%i%s"%(i,prefix))
-        nodes += n
-        edges += newedges
-        edges += [(thisnodename,childroot)]
-
-    return thisnodename,nodes,edges
-
-
-
-
-
-def dot_output(tree):
-    # Make a little dot output for the particular tree
-    _,nodes,edges = get_nodes_edges(tree)
-
-    outp = ""
-
-    outp += "digraph tree {\n"
-    
-    for (nodename,nodelabel) in nodes:
-        outp += "\t%s [label=\"%s\"]\n"%(nodename,nodelabel)
-
-    for (from_node,to_node) in edges:
-        outp += "\t%s -> %s\n"%(from_node,to_node)
-
-    outp+="}\n"
-    return outp
-
-
-
-
-def tree_to_pdf(tree,fname):
-    # Makes a dot graph and outputs to pdf
-    outp = dot_output(tree)
-    f = open('.tmp.dot','w')
-    f.write(outp)
-    f.close()
-    
-    import subprocess
-    subprocess.call(['dot','.tmp.dot','-Tpdf','-o',fname])
-    # subprocess.call(['rm','.tmp.dot']) # clean up my mess
-    
-    return
-
-
-
-def tree_to_png(tree,fname):
-    # Makes a dot graph and outputs to pdf
-    outp = dot_output(tree)
-    f = open('.tmp.dot','w')
-    f.write(outp)
-    f.close()
-    
-    import subprocess
-    subprocess.call(['dot','.tmp.dot','-Tpng','-o',fname])
-    # subprocess.call(['rm','.tmp.dot']) # clean up my mess
-    
-    return
-
-
-
-def make_rule_probs(g):
-    """Given a grammar with rhss (rhs,isCopy,prob) makes dictionary of log rule probs. 
-    Keys are strings built from rule names.
-    We use the same method for making keys as is used in the parser in case we want to change it"""
-    rule_probs={}
-    for (lhs,rhss) in g:
-        for (rhs,isCopy,p) in rhss:
-            rule_probs[rule2string(lhs,rhs,isCopy)]=np.log(p)
-    return rule_probs
 
 
 
