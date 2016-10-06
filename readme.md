@@ -5,8 +5,8 @@
 * `ckypy/` contains the basic CKY parser
 	* `input` contains output from the previous OCaml script so that we can easily extract the rules
 	* `read_cath8_parses.py` reads `input` and does something with it.
-	* `ckypy.py` this is the parser proper, imported in `read_cath8_parses.py`.
-  
+	* `cky.py` is the parser we'll probably use. It treats copying as a string operation.
+	* `cky_constituent_copy.py` this is a version of the parser that only copies constituents and does so with rules marked as copy rules. Currently imported in `read_cath8_parses.py`.
 
 
 ## Plan
