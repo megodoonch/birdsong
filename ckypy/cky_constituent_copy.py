@@ -60,6 +60,15 @@ def print_chart(ch):
                 print "(%i,%i)"%(i,j),ch[i][j]
     print "### end Chart ###"
 
+def print_backpointers(ch):
+    g_length = len(ch[0][0])
+    print "### Backpointers ###"
+    for i,row in enumerate(ch):
+        for j,col in enumerate(ch[i]):
+            if any(len(ch[i][j][m])>0 for m in range(g_length)) :
+                print "(%i,%i)"%(i,j),ch[i][j]
+    print "### end Backpointers ###"
+
 
 
 
@@ -536,6 +545,8 @@ def get_nodes_edges(tree,prefix=""):
 
 
 
+
+
 def dot_output(tree):
     # Make a little dot output for the particular tree
     _,nodes,edges = get_nodes_edges(tree)
@@ -568,6 +579,22 @@ def tree_to_pdf(tree,fname):
     # subprocess.call(['rm','.tmp.dot']) # clean up my mess
     
     return
+
+
+
+def tree_to_png(tree,fname):
+    # Makes a dot graph and outputs to pdf
+    outp = dot_output(tree)
+    f = open('.tmp.dot','w')
+    f.write(outp)
+    f.close()
+    
+    import subprocess
+    subprocess.call(['dot','.tmp.dot','-Tpng','-o',fname])
+    # subprocess.call(['rm','.tmp.dot']) # clean up my mess
+    
+    return
+
 
 
 def make_rule_probs(g):

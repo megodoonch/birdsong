@@ -2,6 +2,7 @@
 *~
 
 parse_*.pdf
+parse_*.png
 
 .tmp.dot
 

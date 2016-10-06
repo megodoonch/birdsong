@@ -109,6 +109,17 @@ def print_chart(ch):
     print ("### end Chart ###")
 
 
+def print_backpointers(ch):
+    g_length = len(ch[0][0])
+    print "### Backpointers ###"
+    for i,row in enumerate(ch):
+        for j,col in enumerate(ch[i]):
+            if any(len(ch[i][j][m])>0 for m in range(g_length)) :
+                print "(%i,%i)"%(i,j),ch[i][j]
+    print "### end Backpointers ###"
+
+
+
 
 ############# MAIN FUNCTIONS #################
 
@@ -242,7 +253,8 @@ def collect_trees(category,chart,backpoints,grammar,sentence,from_i=0,to_i=None)
             if len(rhs)==1:
                 lhs,rhss=grammar[category_n]
                 if category==lhs and rhs in rhss: # we need to check because the copies might not really work, if the grammar doesn't allow them in this spot.
-                    reconstructions.append( (rule2string(lhs,rhs),[]) )
+                    #reconstructions.append( (rule2string(lhs,rhs),[]) )
+                    reconstructions.append( ("%s\n%s"%(lhs,rhs[0]),[]) )
 
             else:
                 (rhsB,rhsC)=(rhs[0],rhs[1])
@@ -256,7 +268,7 @@ def collect_trees(category,chart,backpoints,grammar,sentence,from_i=0,to_i=None)
                     for reconstrC in trees_rhsC:
 
                         # And then put them together
-                        reconstruction = (rulestr,
+                        reconstruction = (category,  #rulestr,
                                           [reconstrB,
                                            reconstrC])
                         reconstructions.append( reconstruction )
@@ -341,9 +353,23 @@ def n_parses(category,chart,backpoints,grammar,sentence,from_i=0,to_i=None):
 
 
 def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to_i=None):
-    # Find the probability of the parses for the sentence and the given category
+    """ Finds the probability of the parses for the sentence and the given category
+    
+    Arguments:
+    category   : start category, usually "S"
+    chart      : filled CKY chart
+    backpoints : chart of backpointers
+    grammar    : the grammar used to fill the chart. Probs are separate.
+    sentence   : string list
+    ruleprobs  : dictionary. Keys are strings, one for each rule "lhs->rhs". 
+                 Values are log probabilities.
+                 Probs for all rules with the same LHS sum to 1 (log-sum to 0)
+    from_i     : starting point, usually the start of the sentence but you can also test a substring
+    to_i       : end point, usually the end of the sentence but you can also test a substring
 
-    # Let's go collect trees!
+    """
+
+    # if there's no endpoint given, default to the end of the sentence.
     if to_i==None:
         to_i=len(sentence)
 
@@ -403,7 +429,7 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
                 # Ok, then we should combine all reconstructions from both sides of the rule
                 rulestr = rule2string(category,[rhsB,rhsC])#"%s->%s.%s"%(category,rhsB,rhsC)
                 ruleprob = ruleprobs[rulestr]
-                log_prob = ckypy.log_add(log_prob,prob_rhsB+prob_rhsC+ruleprob)
+                log_prob = log_add(log_prob,prob_rhsB+prob_rhsC+ruleprob)
                 # mind you, the probability of this item is the PRODUCT of the two children,
                 # hence the addition here, and of course the probability of applying the rule.
                 log_probs[i][j][category_n] = log_prob
@@ -415,8 +441,110 @@ def probability(category,chart,backpoints,grammar,sentence,ruleprobs,from_i=0,to
     return log_probs,get_prob(from_i,to_i,category)
     
 
+##### DEALING WITH OUTPUTS ######
 
 
+def find_prob_from_parses(parses,ruleprobs,output_trees=False):
+
+    # Find the probability of a particular sentence from its parses.
+    # I.e. this will be untractable for big guys but I can use it to
+    # verify my faster implementation (using caching) on the smaller guys.
+
+    parse_probs = []
+
+    for i,parse in enumerate(parses):
+        
+        if output_trees:
+            tree_to_pdf(parse,'output/parse%05i.pdf'%i)
+
+        rules = rules_used(parse)
+        log_ps = map(lambda x: ruleprobs[x],rules)
+        parseprob = sum(log_ps) # the probability of the parse is simply the sum of the log probabilities of the rules used
+        parse_probs.append( parseprob )
+
+    # Add the probabilities of the parses, using a smart
+    # bit of algebra to prevent underflow 
+    # (essentially what we are trying to compute is log(exp(X)+exp(Y))).
+    total_prob = parse_probs[0]
+    for logp in parse_probs[1:]:
+        total_prob = log_add(total_prob,logp)
+
+    return total_prob
+
+
+
+
+
+
+def get_nodes_edges(tree,prefix=""):
+    # Given a particular tree, define a list of nodes and edges
+    # so that we can easily plot it later on.
+    # The prefix is a prefix that we give to node names so that we
+    # guarantee that they will be unique
+
+    (rule,children) = tree
+
+    thisnodename = "p%s"%prefix
+    nodes = [(thisnodename,rule)]
+    edges = []
+    for i,child in enumerate(children):
+        # Take over the nodes and edges from the children
+        childroot,n,newedges = get_nodes_edges(child,"%i%s"%(i,prefix))
+        nodes += n
+        edges += newedges
+        edges += [(thisnodename,childroot)]
+
+    return thisnodename,nodes,edges
+
+
+
+def dot_output(tree):
+    # Make a little dot output for the particular tree
+    _,nodes,edges = get_nodes_edges(tree)
+
+    outp = ""
+
+    outp += "digraph tree {\n node [shape = none; height=0; width=0];\n edge [dir=none];"
+    
+    for (nodename,nodelabel) in nodes:
+        outp += "\t%s [label=\"%s\"]\n"%(nodename,nodelabel)
+
+    for (from_node,to_node) in edges:
+        outp += "\t%s -> %s\n"%(from_node,to_node)
+
+    outp+="}\n"
+    return outp
+
+
+
+
+def tree_to_pdf(tree,fname):
+    # Makes a dot graph and outputs to pdf
+    outp = dot_output(tree)
+    f = open('.tmp.dot','w')
+    f.write(outp)
+    f.close()
+    
+    import subprocess
+    subprocess.call(['dot','.tmp.dot','-Tpdf','-o',fname])
+    # subprocess.call(['rm','.tmp.dot']) # clean up my mess
+    
+    return
+
+
+
+def tree_to_png(tree,fname):
+    # Makes a dot graph and outputs to pdf
+    outp = dot_output(tree)
+    f = open('.tmp.dot','w')
+    f.write(outp)
+    f.close()
+    
+    import subprocess
+    subprocess.call(['dot','.tmp.dot','-Tpng','-o',fname])
+    # subprocess.call(['rm','.tmp.dot']) # clean up my mess
+    
+    return
 
 
 
