@@ -58,12 +58,19 @@ def rule2string(lhs,rhs):
     lhs : string
     rhs : string list
     """
-    rule_string=""
-    if len(rhs)==1:
-        rule_string += "%s->%s"%(lhs,rhs[0])
-    elif len(rhs)==2:
-        rule_string += "%s->%s.%s"%(lhs,rhs[0],rhs[1])
-    return rule_string
+    return "%s->%s"%(lhs,".".join(rhs))
+
+
+def grammar2string(grammar):
+    """
+    Prints a grammar as a readable string.
+    """
+    s = ""
+    for (lhs,rhss) in grammar:
+        for rhs in rhss:
+            s+=rule2string(lhs,rhs)+"\n"
+    return s
+
 
 
 def make_rule_probs(g,log=False):
@@ -75,7 +82,7 @@ def make_rule_probs(g,log=False):
     Arguments:
     g   : category * (category list * float) list list
     log : Bool
-"""
+    """
     rule_probs={}
     for (lhs,rhss) in g:
         for (rhs,p) in rhss:
@@ -94,12 +101,12 @@ def print_chart(ch):
     Arguments:
     ch : list list list
     """
-    print "### Chart ###"
+    print ("### Chart ###")
     for i,row in enumerate(ch):
         for j,col in enumerate(ch[i]):
             if len(ch[i][j])>0:
-                print "(%i,%i)"%(i,j),ch[i][j]
-    print "### end Chart ###"
+                print ("(%i,%i)"%(i,j),ch[i][j])
+    print ("### end Chart ###")
 
 
 
