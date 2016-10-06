@@ -6,7 +6,7 @@
 # Let's give it a try.
 
 
-import ckypy
+import cky_constituent_copy
 import pandas as pd
 import numpy as np
 

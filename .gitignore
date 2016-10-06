@@ -4,3 +4,5 @@
 parse_*.pdf
 
 .tmp.dot
+
+readme.html
