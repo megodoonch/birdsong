@@ -12,6 +12,8 @@ http://mikelove.wordpress.com/2011/06/06/log-probabilities-trick/
 
 import numpy as np
 from common import *
+from pandas import DataFrame
+
 
 ############### UTILITY FUNCTIONS ######################
 
@@ -39,42 +41,44 @@ def backpointer_cell_to_string(cell):
     """Makes a string of a cell of a backpointer chart"""
     s="["
     for (k,rhs) in cell:
-        s+="(%i,%s) "%(k,".".join(rhs))
-    s+="] "
+        s+="(%i, %s)"%(k,",".join(rhs))
+    s+="]"
     return s
 
 
-def print_backpointers_string(ch,g):
-    """ prints backpointers like super awesome
+
+def make_backpointers_pretty(ch,g):
+    """Turn backpointers into a nice list of lists for DataFrame to read
+
+    Arguments:
+    ch : backpointers chart
+    g  : grammar
     """
-    g_length = len(g)
     lhss = [lhs for lhs,_ in g]
-    lhss_lengths = [len(lhs) for lhs in lhss]
-    max_cell=0 # maximal cell length
-    max_index=max(lhss_lengths)
-    print( "### Backpointers ###")
-    s=""
+    g_length = len(g)
+    s=[["LHS:"]+lhss]
     for i,row in enumerate(ch):
         for j,col in enumerate(ch[i]):
             if any(len(ch[i][j][m])>0 for m in range(g_length)) :
-                row="(%i,%i) "%(i,j)
-                max_index=max(max_index,len(row))
+                e=["(%i,%i)"%(i,j)]
                 for cell in ch[i][j]:
-                    cell_string=backpointer_cell_to_string(cell)
-                    row+=cell_string
-                    max_cell = max(max_cell,len(cell_string))
-                s+=row
-                s+="\n"
-    top="LHS"+" "*(max_index-3)
-    for i in range(g_length-1):
-        top+=("%s"%(lhss[i])+" "*(max_cell-1))
-    top+= "%s"%(lhss[-1])
-    print(top)
-    print(s)
-    print ("### end Backpointers ###")
+                    e+=[backpointer_cell_to_string(cell)]
+                s+=[e]
+    return s
 
 
+def pretty_print_backpointers(ch,g):
+    """
+    uses DataFrame from Pandas to print a nicely laid out backpointer chart
 
+    Arguments:
+    ch : backpointer chart
+    g  : grammar
+    """
+    ch=make_backpointers_pretty(ch,g)
+    print ("#### BACKPOINTERS ####")
+    print (DataFrame(ch))
+    print ("#### end BACKPOINTERS ####")
 
 
 
@@ -150,7 +154,7 @@ def parse(sentence,grammar):
             if copy_grammar:
                 if i >= j/2: # if there's enough room for a copy this length before this cell
                     start=2*i-j #start of potential copied material
-                    if start>=0 and s[start:i]==s[i:j]: 
+                    if start>=0 and sentence[start:i]==sentence[i:j]: 
                         # make sure we're not trying to start before the sentence starts! 
                         # Check if it's a copy.
                         chart[i][j].append(COPY_LHS)
@@ -216,7 +220,10 @@ def collect_trees(category,chart,backpoints,grammar,sentence,from_i=0,to_i=None)
                 lhs,rhss=grammar[category_n]
                 if category==lhs and rhs in rhss: # we need to check because the copies might not really work, if the grammar doesn't allow them in this spot.
                     #reconstructions.append( (rule2string(lhs,rhs),[]) )
-                    reconstructions.append( ("%s\n%s"%(lhs,rhs[0]),[]) )
+                    if rhs[0]==COPY_RHS:
+                        reconstructions.append( ("%s\n%s\n%s"%(lhs,rhs[0],('.'.join(sentence[i:j]))),[]) )
+                    else:
+                        reconstructions.append( ("%s\n%s"%(lhs,rhs[0]),[]) )
 
             else:
                 (rhsB,rhsC)=(rhs[0],rhs[1])
