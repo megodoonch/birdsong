@@ -16,6 +16,22 @@ s2=s2.split(" ")
 sentence=s2
 n=len(sentence)
 
+trans = {
+    "a": {'b': 0.7,
+          ']': 0.3},
+    'b': {'b': 0.2,
+          ']': 0.8},
+    '[': {'a': 1.0}
+}
+
+for a in trans:
+    for b in trans[a]:
+        trans[a][b]=np.log(trans[a][b])
+
+
+def abstar(n):
+    return ['[','a']+(['b']*n)+[']']
+
 
 s=s.split(' ')
 
@@ -65,4 +81,4 @@ trans.append(("a","a"))
 
 
 for i,tree in enumerate(trees):
-    tree_to_pdf(tree,"parse_%i.pdf"%i)
+    cky.tree_to_pdf(tree,"parse_%i.pdf"%i)

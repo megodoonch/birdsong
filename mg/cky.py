@@ -7,6 +7,40 @@ This is a first stab an an MG-style CKY-style parser for bigrams plus copying
 
 import numpy as np
 
+log0=float('-inf')
+
+# def log_add(logx,logy):
+#     """This adds two log-transformed variables,
+#     taking care of the underflow that you usually find when you do this
+
+#     Arguments: 
+#     logx : float
+#     logy : float"""
+
+#     if logx==None: # This is just a hack so that I can give a not-defined sum
+#         return logy
+#     if logy==None:
+#         return logx
+
+#     # First, make X the maximum
+#     if (logy > logx):
+#         logx,logy = logy,logx
+#         #temp = logx
+#         #logx = logy
+#         #logy = temp
+
+#     # How far "down" is logY from logX?
+#     negdiff = logy - logx
+#     if negdiff < -30: # If it's small, we can just ignore logY altogether (it won't make much of a difference)
+#         return logx
+#         # However, in my case I can maybe keep it in because it will just become zero in the sum below.
+
+#     # Otherwise, use some simple algebra to stay in the log domain
+#     # (i.e. here we use log(X)+log(Y) = log(X)+log(1.0+exp(log(Y)-log(X)))
+#     return logx + np.log(1.0 + np.exp(negdiff))
+
+
+
 def log_add(logx,logy):
     """This adds two log-transformed variables,
     taking care of the underflow that you usually find when you do this
@@ -15,11 +49,9 @@ def log_add(logx,logy):
     logx : float
     logy : float"""
 
-    if logx==None: # This is just a hack so that I can give a not-defined sum
-        return logy
-    if logy==None:
-        return logx
-
+    log0 = float('-inf')
+    if logx==log0 and logy==log0: # avoid nan
+        return log0
     # First, make X the maximum
     if (logy > logx):
         logx,logy = logy,logx
@@ -41,12 +73,21 @@ def log_add(logx,logy):
 
 
 
+
+def get_trans(trans,a,b):
+    if a in trans and b in trans[a]:
+        return trans[a][b]
+    else:
+        return None
+
+
 ## names of dictionary keys for cky chart
 
 TR = "Tr"
 CP="Cp"
 BP="BP"
 PR="P"
+
 
 def parse(sentence,trans):
     """
@@ -57,13 +98,100 @@ def parse(sentence,trans):
     
     n=len(sentence)
     
-    chart = [ [ {TR:[], CP:[], BP:[], PR:None} for _ in range(n+1) ] for _ in range(n) ]
+    chart = [ [ {TR:[], CP:[], BP:[], PR:log0} for _ in range(n+1) ] for _ in range(n) ]
 
     for j in range(1,n+1): ## loop over columns, fill them from the bottom up
         chart[j-1][j][TR]=(sentence[j-1],sentence[j-1]) #starts and ends with itself
         chart[j-1][j][BP].append((sentence[j-1],"lex")) # backpointer (word,lex)
         chart[j-1][j][PR]=0. # this might not be right
         
+                
+        #check if the word is a copy of the following word
+        if j<n and sentence[j]==sentence[j-1]:
+            chart[j-1][j][CP].append("-copy") # mark the early copy
+            chart[j][j+1][CP].append("+copy") # mark the late copy
+            # print (j-1,j)
+            # print sentence[j]
+            # print sentence[j-1]
+            #chart[j-1][j][BP].append("copy")
+
+        # Loop over rows, backwards (bottom-up)
+        for i in range(j-2,-1,-1): # we start at j-2 because we already did the diagonal
+            copy_end = 2*j-i
+            if copy_end <= n+1: # if we've got room for a copy
+                # print (i,j)
+                # print sentence[i:j]
+                # print sentence[j:(2*j-i)]
+                if sentence[i:j]==sentence[j:copy_end]:
+                    chart[i][j][CP].append("-copy") #mark the early copy
+                    chart[j][copy_end][CP].append("+copy") #mark the late copy
+                    #chart[i][j][BP].append("copy")
+
+            for k in range(i+1,j): # loop over partitions
+                # Check whether we have the constituents previously recognised
+                left,right = chart[i][k],chart[k][j]
+                if len(left[TR])>0 and len(right[TR])>0: # only look if we actually have daughters
+                    (a,b), (c,d) = left[TR], right[TR] # the TRansitions
+                    if b in trans and c in trans[b]:                # check the grammar for the transition between the sisters. b is the last word of the left daughter and c is the first of the right.
+                        if (a,d) not in chart[i][j][TR]: #only write it once
+                            chart[i][j][TR]=(left[TR][0],right[TR][1]) #the new pair is the outer elements of the combined string
+                        print(i,j)
+                        print(b,c)
+                        print ("trans p ",trans[b][c])
+                        print ("L p ",left[PR])
+                        print ("R p ",right[PR])
+                        print ("mult ", trans[b][c]+left[PR]+right[PR])
+                        print ("existing ",chart[i][j][PR])
+                        print ("sum ",log_add(chart[i][j][PR],
+                                trans[b][c]+left[PR]+right[PR]))
+                        chart[i][j][PR]= log_add(chart[i][j][PR],
+                                                   trans[b][c]+left[PR]+right[PR]) # this might not be right
+                        chart[i][j][BP].append((k,"merge")) # rule and partition in backpointers
+                    # print i,j,k
+                    # print left[CP]
+                    # print right[CP]
+                    if k-i==j-k and "-copy" in left[CP] and "+copy" in right[CP]: #make sure both daughters are marked as matching, only if they're actually the same length.
+                        if (a,d) not in chart[i][j][TR]: #only write it once
+                            chart[i][j][TR]=(left[TR][0],right[TR][1]) #this does belong in the transitions
+                        chart[i][j][PR] = log_add(chart[i][j][PR],
+                                                    right[PR])
+                        chart[i][j][BP].append((k,"copy")) # this is a copy operation, not merge
+
+    return chart
+
+
+
+
+def parse_ends(sentence,trans,p_copy):
+    """
+    parses based on transitions plus copy
+    probs don't work right yet -- might just be the copies which i haven't dealt with yet
+    """
+
+    # let's just bail if this isn't grammatical
+    assert(sentence[0]=="[" and sentence[-1]=="]")
+    
+    l=len(sentence)
+    n=l-2
+
+    chart = [ [ {TR:[], CP:[], BP:[], PR:log0} for _ in range(n+1) ] for _ in range(n) ]
+
+    # deal with the end markers
+    chart[0][1][BP].append((sentence[1],"start"))
+    chart[0][1][PR]=get_trans(trans,"[",sentence[1])
+    chart[n-1][n][BP].append((sentence[-2],"end"))
+    chart[n-1][n][PR]=get_trans(trans,sentence[-2],"]")
+
+    #Now just use the real sentence
+    sentence = sentence[1:-1]
+
+
+    for j in range(1,n+1): ## loop over columns, fill them from the bottom up
+        chart[j-1][j][TR]=(sentence[j-1],sentence[j-1]) #starts and ends with itself
+        chart[j-1][j][BP].append((sentence[j-1],"lex")) # backpointer (word,lex)
+        if chart[j-1][j][PR]==log0:
+            chart[j-1][j][PR]=0. 
+
                 
         #check if the word is a copy of the following word
         if j<n and sentence[j]==sentence[j-1]:
@@ -113,14 +241,73 @@ def parse(sentence,trans):
                         if (a,d) not in chart[i][j][TR]: #only write it once
                             chart[i][j][TR]=(left[TR][0],right[TR][1]) #this does belong in the transitions
                         chart[i][j][PR] = log_add(chart[i][j][PR],
-                                                    right[PR])
+                                                    p_copy + right[PR])
                         chart[i][j][BP].append((k,"copy")) # this is a copy operation, not merge
 
     return chart
 
 
 
-def collect_trees(chart,sentence,transition=("[","]"),from_i=0,to_i=None):
+def parse_no_copy(sentence,trans):
+    """
+    parses based on transitions only
+    """
+
+    # let's just bail if this isn't grammatical
+    assert(sentence[0]=="[" and sentence[-1]=="]")
+    
+    l=len(sentence)
+    n=l-2
+
+    chart = [ [ {TR:[], BP:[], PR:log0} for _ in range(n+1) ] for _ in range(n) ]
+
+    # deal with the end markers
+    chart[0][1][BP].append((sentence[1],"start"))
+    chart[0][1][PR]=get_trans(trans,"[",sentence[1])
+    chart[n-1][n][BP].append((sentence[-2],"end"))
+    chart[n-1][n][PR]=get_trans(trans,sentence[-2],"]")
+
+    #Now just use the real sentence
+    sentence = sentence[1:-1]
+
+
+    for j in range(1,n+1): ## loop over columns, fill them from the bottom up
+        chart[j-1][j][TR]=(sentence[j-1],sentence[j-1]) #starts and ends with itself
+        chart[j-1][j][BP].append((sentence[j-1],"lex")) # backpointer (word,lex)
+        if chart[j-1][j][PR]==log0:
+            chart[j-1][j][PR]=0. 
+        
+        # Loop over rows, backwards (bottom-up)
+        for i in range(j-2,-1,-1): # we start at j-2 because we already did the diagonal
+            for k in range(i+1,j): # loop over partitions
+                # Check whether we have the constituents previously recognised
+                left,right = chart[i][k],chart[k][j]
+                if len(left[TR])>0 and len(right[TR])>0: # only look if we actually have daughters
+                    (a,b), (c,d) = left[TR], right[TR] # the TRansitions
+                    if c in trans[b]:                # check the grammar for the transition between the sisters. b is the last word of the left daughter and c is the first of the right.
+                        if (a,d) not in chart[i][j][TR]: #only write it once
+                            chart[i][j][TR]=(left[TR][0],right[TR][1]) #the new pair is the outer elements of the combined string
+                        # print(i,j)
+                        # print(b,c)
+                        # print ("trans p ",trans[b][c])
+                        # print ("L p ",left[PR])
+                        # print ("R p ",right[PR])
+                        # print ("mult ", trans[b][c]+left[PR]+right[PR])
+                        # print ("existing ",chart[i][j][PR])
+                        # print ("sum ",log_add(chart[i][j][PR],
+                        #         trans[b][c]+left[PR]+right[PR]))
+                        chart[i][j][PR]= log_add(chart[i][j][PR],
+                                                   trans[b][c]+left[PR]+right[PR]) # this might not be right
+                        chart[i][j][BP].append((k,"merge")) # rule and partition in backpointers
+    return chart
+
+
+
+
+
+
+
+def collect_trees(chart,sentence,from_i=0,to_i=None):
     """
     Once we've parsed the sentence we can collect the trees.
 
@@ -132,11 +319,13 @@ def collect_trees(chart,sentence,transition=("[","]"),from_i=0,to_i=None):
 
     output     : list of trees. Trees are tuples of (rule used, list of daughter trees)
     """
-    
+
+    #cut off the end markers
+    sentence=sentence[1:-1]
+
     if to_i==None:
         to_i=len(sentence)
 
-    assert(chart[from_i][to_i][TR]==transition)
 
     def reconstruct(i,j):
         # GIVE ALL RECONSTRUCTIONS OF THE category between i and j, using back pointers 
@@ -152,7 +341,10 @@ def collect_trees(chart,sentence,transition=("[","]"),from_i=0,to_i=None):
         for (k,rule) in chart[i][j][BP]:
 
             # for lexical items
-            if rule=="lex":
+            if rule=="start" or rule=="end":
+                pass # let's leave this alone
+
+            elif rule=="lex":
                 reconstructions.append( (k,[]) )
 
             elif rule=="copy":
@@ -179,6 +371,9 @@ def collect_trees(chart,sentence,transition=("[","]"),from_i=0,to_i=None):
                         
     return reconstruct(from_i,to_i)
                         
+
+
+
 
 
 ##### PRINTERS #####
@@ -257,12 +452,11 @@ def tree_to_png(tree,fname):
 
 def print_chart(ch):
     """
-    Prints any list of lists of lists. 
-    For a given cell, prints the coordinates and contents if it's not empty.
-    We use this to print the CKY chart. Also works for the backpointers chart.
+    For a given cell, prints the coordinates and contents if transitions or copies are not empty.
+    We use this to print the CKY chart.
 
     Arguments:
-    ch : list list list
+    ch : cky chart -- dict list list with TR and CP keys
     """
     print ("### Chart ###")
     for i,row in enumerate(ch):
@@ -272,5 +466,24 @@ def print_chart(ch):
     print ("### end Chart ###")
 
 
+def print_chart_no_copy(ch):
+    """
+    For a given cell, prints the coordinates and contents if transitions are not empty.
+    We use this to print the CKY chart.
+
+    Arguments:
+    ch : cky chart -- dict list list with TR among the keys
+    """
+    print ("### Chart ###")
+    for i,row in enumerate(ch):
+        for j,col in enumerate(ch[i]):
+            if ch[i][j][TR]!=[]:
+                print ("(%i,%i)"%(i,j),ch[i][j])
+    print ("### end Chart ###")
 
 
+
+
+def prob_sent_no_copy(s,trans):
+    chart=parse_no_copy(s,trans)
+    return chart[0][len(chart)][PR]
