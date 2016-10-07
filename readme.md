@@ -8,6 +8,8 @@
 	* `cky.py` is the parser we'll probably use. It treats copying as a string operation.
 	* `cky_constituent_copy.py` this is a version of the parser that only copies constituents and does so with rules marked as copy rules. Currently imported in `read_cath8_parses.py`.
 	* `common.py` contains functions common to both parsers
+* `mg/` contains a draft of a minimalist-style parser
+	* `parser.py` is a draft of a minimalist grammar style cky parser that handles copies and transitions. This might be what we want. More later...
 
 
 ## Plan
