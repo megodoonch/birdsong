@@ -41,76 +41,38 @@ def log_add(logx,logy):
 
 
 
-s = "a b c b c a"
+## names of dictionary keys for cky chart
 
-s2 = "a d e"
-s2=s2.split(" ")
-sentence=s2
-n=len(sentence)
-
-
-s=s.split(' ')
-
-sentence = s
-
-n=len(sentence)
-
-trans = []
-for i in range(n-1):
-    trans.append((s[i],s[i+1]))
-list(set(trans))
-
-transitions = {}
-for i in range(len(s)-1):
-    if s[i] in transitions:
-        transitions[s[i]][s[i+1]] = transitions[s[i]].get(s[i+1],0) + 1
-    else:
-        transitions[s[i]] = transitions.get(s[i],{s[i+1]:1})
-
-def count_ngrams(tr,a):
-    tot = 0
-    for b in tr[a]:
-        tot+=tr[a][b]
-    for b in tr[a]:
-        tr[a][b]=np.log(tr[a][b]/float(tot))
-    return tr[a]
-
-
-for a in transitions:
-    count_ngrams(transitions,a)
-
-trans.append(("a","a"))
-
-tr = "tr"
-cp="cp"
-bp="bp"
-prob="p"
+TR = "Tr"
+CP="Cp"
+BP="BP"
+PR="P"
 
 def parse(sentence,trans):
     """
     parses based on transitions plus copy
-    proba don't work right yet
+    probs don't work right yet -- might just be the copies which i haven't dealt with yet
     """
 
     
     n=len(sentence)
     
-    chart = [ [ {tr:[], cp:[], bp:[], prob:None} for _ in range(n+1) ] for _ in range(n) ]
+    chart = [ [ {TR:[], CP:[], BP:[], PR:None} for _ in range(n+1) ] for _ in range(n) ]
 
     for j in range(1,n+1): ## loop over columns, fill them from the bottom up
-        chart[j-1][j][tr]=(sentence[j-1],sentence[j-1]) #starts and ends with itself
-        chart[j-1][j][bp].append((sentence[j-1],"lex")) # backpointer (word,lex)
-        chart[j-1][j][prob]=0. # this might not be right
+        chart[j-1][j][TR]=(sentence[j-1],sentence[j-1]) #starts and ends with itself
+        chart[j-1][j][BP].append((sentence[j-1],"lex")) # backpointer (word,lex)
+        chart[j-1][j][PR]=0. # this might not be right
         
                 
         #check if the word is a copy of the following word
         if j<n and sentence[j]==sentence[j-1]:
-            chart[j-1][j][cp].append("-copy") # mark the early copy
-            chart[j][j+1][cp].append("+copy") # mark the late copy
+            chart[j-1][j][CP].append("-copy") # mark the early copy
+            chart[j][j+1][CP].append("+copy") # mark the late copy
             # print (j-1,j)
             # print sentence[j]
             # print sentence[j-1]
-            #chart[j-1][j][bp].append("copy")
+            #chart[j-1][j][BP].append("copy")
 
         # Loop over rows, backwards (bottom-up)
         for i in range(j-2,-1,-1): # we start at j-2 because we already did the diagonal
@@ -120,45 +82,45 @@ def parse(sentence,trans):
                 # print sentence[i:j]
                 # print sentence[j:(2*j-i)]
                 if sentence[i:j]==sentence[j:copy_end]:
-                    chart[i][j][cp].append("-copy") #mark the early copy
-                    chart[j][copy_end][cp].append("+copy") #mark the late copy
-                    #chart[i][j][bp].append("copy")
+                    chart[i][j][CP].append("-copy") #mark the early copy
+                    chart[j][copy_end][CP].append("+copy") #mark the late copy
+                    #chart[i][j][BP].append("copy")
 
             for k in range(i+1,j): # loop over partitions
                 # Check whether we have the constituents previously recognised
                 left,right = chart[i][k],chart[k][j]
-                if len(left[tr])>0 and len(right[tr])>0: # only look if we actually have daughters
-                    (a,b), (c,d) = left[tr], right[tr] # the transitions
+                if len(left[TR])>0 and len(right[TR])>0: # only look if we actually have daughters
+                    (a,b), (c,d) = left[TR], right[TR] # the TRansitions
                     if c in trans[b]:                # check the grammar for the transition between the sisters. b is the last word of the left daughter and c is the first of the right.
-                        if (a,d) not in chart[i][j][tr]: #only write it once
-                            chart[i][j][tr]=(left[tr][0],right[tr][1]) #the new pair is the outer elements of the combined string
-                        # print(i,j)
-                        # print(b,c)
-                        # print (trans[b][c])
-                        # print left[prob]
-                        # print right[prob]
-                        # print trans[b][c]+left[prob]+right[prob]
-                        # print chart[i][j][prob]
-                        # print (log_add(chart[i][j][prob],
-                        #         trans[b][c]+left[prob]+right[prob]))
-                        chart[i][j][prob]= log_add(chart[i][j][prob],
-                                                   trans[b][c]+left[prob]+right[prob]) # this might not be right
-                        chart[i][j][bp].append((k,"merge")) # rule and partition in backpointers
+                        if (a,d) not in chart[i][j][TR]: #only write it once
+                            chart[i][j][TR]=(left[TR][0],right[TR][1]) #the new pair is the outer elements of the combined string
+                        print(i,j)
+                        print(b,c)
+                        print ("trans p ",trans[b][c])
+                        print ("L p ",left[PR])
+                        print ("R p ",right[PR])
+                        print ("mult ", trans[b][c]+left[PR]+right[PR])
+                        print ("existing ",chart[i][j][PR])
+                        print ("sum ",log_add(chart[i][j][PR],
+                                trans[b][c]+left[PR]+right[PR]))
+                        chart[i][j][PR]= log_add(chart[i][j][PR],
+                                                   trans[b][c]+left[PR]+right[PR]) # this might not be right
+                        chart[i][j][BP].append((k,"merge")) # rule and partition in backpointers
                     # print i,j,k
-                    # print left[cp]
-                    # print right[cp]
-                    if k-i==j-k and "-copy" in left[cp] and "+copy" in right[cp]: #make sure both daughters are marked as matching, only if they're actually the same length.
-                        if (a,d) not in chart[i][j][tr]: #only write it once
-                            chart[i][j][tr]=(left[tr][0],right[tr][1]) #this does belong in the transitions
-                        chart[i][j][prob] = log_add(chart[i][j][prob],
-                                                    right[prob])
-                        chart[i][j][bp].append((k,"copy")) # this is a copy operation, not merge
+                    # print left[CP]
+                    # print right[CP]
+                    if k-i==j-k and "-copy" in left[CP] and "+copy" in right[CP]: #make sure both daughters are marked as matching, only if they're actually the same length.
+                        if (a,d) not in chart[i][j][TR]: #only write it once
+                            chart[i][j][TR]=(left[TR][0],right[TR][1]) #this does belong in the transitions
+                        chart[i][j][PR] = log_add(chart[i][j][PR],
+                                                    right[PR])
+                        chart[i][j][BP].append((k,"copy")) # this is a copy operation, not merge
 
     return chart
 
 
 
-def collect_trees(chart,sentence,from_i=0,to_i=None):
+def collect_trees(chart,sentence,transition=("[","]"),from_i=0,to_i=None):
     """
     Once we've parsed the sentence we can collect the trees.
 
@@ -174,6 +136,8 @@ def collect_trees(chart,sentence,from_i=0,to_i=None):
     if to_i==None:
         to_i=len(sentence)
 
+    assert(chart[from_i][to_i][TR]==transition)
+
     def reconstruct(i,j):
         # GIVE ALL RECONSTRUCTIONS OF THE category between i and j, using back pointers 
         # (this will be called recursively.
@@ -185,7 +149,7 @@ def collect_trees(chart,sentence,from_i=0,to_i=None):
         reconstructions = []
 
         # For each of the reconstructions, collect the trees
-        for (k,rule) in chart[i][j][bp]:
+        for (k,rule) in chart[i][j][BP]:
 
             # for lexical items
             if rule=="lex":
@@ -216,6 +180,8 @@ def collect_trees(chart,sentence,from_i=0,to_i=None):
     return reconstruct(from_i,to_i)
                         
 
+
+##### PRINTERS #####
 
 def get_nodes_edges(tree,prefix=""):
     # Given a particular tree, define a list of nodes and edges
@@ -301,7 +267,7 @@ def print_chart(ch):
     print ("### Chart ###")
     for i,row in enumerate(ch):
         for j,col in enumerate(ch[i]):
-            if ch[i][j][tr]!=[] or ch[i][j][cp]!=[]:
+            if ch[i][j][TR]!=[] or ch[i][j][CP]!=[]:
                 print ("(%i,%i)"%(i,j),ch[i][j])
     print ("### end Chart ###")
 
