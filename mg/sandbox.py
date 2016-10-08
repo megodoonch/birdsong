@@ -32,6 +32,8 @@ for a in trans:
 def abstar(n):
     return ['[','a']+(['b']*n)+[']']
 
+probs = [np.exp(cky.prob_sent_no_copy(abstar(i),trans,0.5)) for i in range(10)]
+
 
 s=s.split(' ')
 
