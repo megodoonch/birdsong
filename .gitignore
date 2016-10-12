@@ -7,3 +7,7 @@ parse_*.png
 .tmp.dot
 
 readme.html
+
+.DS_Store
+
+.#~
