@@ -298,13 +298,13 @@ def probability(s,bigrams,ops):
     possible = len(s)>=2 and s[0]=='[' and s[-1]==']'
     
     if possible: # only sentence with at least [ and ] are going to be grammatical
-        agenda = [ [['['],[],['mg'],False,0.] ]  # initialise the agenda
+        agenda = [ [['['],[],['mg'],False,0.,1] ]  # initialise the agenda
     else:
         return parses
     while len(agenda)>0: # keep parsing as long as we have incomplete parses. We have a chance to bail if there's a bad transition
         for parse in agenda:
             print("\nparse: %s"%parse)
-            i=len(parse[0])
+            i=parse[5]
             if i==len(s): # move a complete parse over to the output
                 (all_parses,useful_parses)=parses 
                 all_parses = (log_add(all_parses[0],parse[4]), all_parses[1]+[parse]) # add prob of this parse to total prob
@@ -326,13 +326,14 @@ def probability(s,bigrams,ops):
                     ## try clearing the buffer
                     print ("\n Clear")
                     if not parse[3]:  #i if last special op not clear
-                        new_parse=[[],[],[],[],[]] # this is to make copies of the lists inside the list
+                        new_parse=[[],[],[],[],[],[]] # this is to make copies of the lists inside the list
                         new_parse[0]=parse[0][:] # copy the string
                         new_parse[2]=parse[2][:] # copy the list of operations
                         new_parse[1]=[] # clear the buffer
                         new_parse[2].append('clear')
                         new_parse[3]=True # the last special op was Clear
                         new_parse[4]=parse[4]+ops[parse[2][-1]]['clear']
+                        new_parse[5]=parse[5] # we haven't advanced in the string
                         print ("new parse: %s"%new_parse)
                         agenda.append(new_parse) # add this new parse to the agenda
 
@@ -342,7 +343,7 @@ def probability(s,bigrams,ops):
                     print ("copy? ", s[i : i+len(parse[1])])
                     # if the buffer is the same as the next part of the sentence
                     if i+len(parse[1]) <= len(s) and parse[1]==s[i : i+len(parse[1])]: 
-                        new_parse=[[],[],[],[],[]] # make a deep copy
+                        new_parse=[[],[],[],[],[],[]] # make a deep copy
                         new_parse[2]=parse[2][:] # copy the list of operations
                         new_parse[0]=parse[0][:] # we're really just keeping track of transitions
                         new_parse[1]=parse[1][:]+parse[1][:] #add copy to buffer
@@ -351,6 +352,7 @@ def probability(s,bigrams,ops):
                         last_op=parse[2][-1]
                         print last_op
                         new_parse[4]=parse[4]+ops[last_op]['copy']
+                        new_parse[5]=parse[5]+len(parse[1]) # skip ahead in the string
                         print ("new parse : %s"%new_parse)
                         agenda.append(new_parse) # add the new parse to the agenda
 
@@ -361,7 +363,7 @@ def probability(s,bigrams,ops):
                     parse[1].append(s[i]) #buffer
                     parse[2].append('mg') #list of ops
                     parse[4]=parse[4]+ops[parse[2][-1]]['mg']+bigrams[s[i-1]][s[i]]
-
+                    parse[5]=parse[5]+1 # advance down the string 1 step
                     print ("merged parse: %s"%parse)
                 else:
                     return parses # if this isn't a legal transition, this sentence is not grammatical
@@ -369,3 +371,12 @@ def probability(s,bigrams,ops):
     return parses
 
 
+def probability_bigrams(s,bigrams):
+    """
+    Calculates the probability of the sentence based just on the bigrams
+    """
+    s=s.split(' ')
+    p=0.
+    for i in range(1,len(s)):
+        p+=bigrams[s[i-1]][s[i]]
+    return p

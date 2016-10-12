@@ -43,12 +43,17 @@ s="[ ]"
 
 s="[ a a a a a ]"
 
+s="[ a a a ]"
+
+
 parses = markhov.parse(s,bigrams)
 
-probs = markhov.probability(s,bigrams,ops)
-
 print(parses)
+
+
+probs = markhov.probability(s,bigrams,ops)
 
 print("prob all parses: %0.5f"%probs[0][0])
 
 print("prob useful parses: %0.5f"%probs[1][0])
+
