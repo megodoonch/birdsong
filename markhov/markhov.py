@@ -344,7 +344,7 @@ def probability(s,bigrams,ops):
                     if i+len(parse[1]) <= len(s) and parse[1]==s[i : i+len(parse[1])]: 
                         new_parse=[[],[],[],[],[]] # make a deep copy
                         new_parse[2]=parse[2][:] # copy the list of operations
-                        new_parse[0]=s[:i+len(parse[1])] # skip ahead to end of copy in the string
+                        new_parse[0]=parse[0][:] # we're really just keeping track of transitions
                         new_parse[1]=parse[1][:]+parse[1][:] #add copy to buffer
                         new_parse[2].append('copy') # add operation to operation list 
                         new_parse[3]=False # the last special operation was not Clear
