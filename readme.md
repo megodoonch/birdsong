@@ -8,8 +8,18 @@
 	* `cky.py` is the parser we'll probably use. It treats copying as a string operation.
 	* `cky_constituent_copy.py` this is a version of the parser that only copies constituents and does so with rules marked as copy rules. Currently imported in `read_cath8_parses.py`.
 	* `common.py` contains functions common to both parsers
-* `mg/` contains a draft of a minimalist-style parser
+* `mg/` contains a minimalist-style parser
 	* `parser.py` is a draft of a minimalist grammar style cky parser that handles copies and transitions. This might be what we want. More later...
+* `markhov/` contains a model with two Markhov chains: one for the bigrams and one for the operations
+	* `markhov.py` has four main functions:
+	  1. `move` steps through the derivation. You can tell it what operation you want to perform and what transition you want to make
+	  2. `generate` generates a sentence using the transitional probabilities given in the two markhov chains
+	  3. `parse` parses a sentence
+      4. `probability` parses a sentence and returns the probability sum of the parses. It also checks to see whether there are pointless operations and excludes them from the probability. Both probability sums are returned along with the parses.
+	  
+      This grammar works as follows: there are three operations, Merge, Copy, and Clear. As we build the sentence we also build a buffer which is a suffix of the sentence so far. Merge adds a word to both sentence and buffer. Copy appends the buffer to both the sentence and the buffer itself, and Clear clears the buffer. The transition from one operation to another has a transitional probability and so does the transition from one word to the next.
+	  
+    	To reduce clutter, Clear can't reccur unless a Copy intervenes. In the `probability` function we can also remove all Clear operations that aren't followed by a Copy.
 
 
 ## Plan

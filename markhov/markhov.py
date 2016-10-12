@@ -214,7 +214,11 @@ def parse(s,bigrams):
     """
 
     s = s.split(' ') # make the string into a list
-    agenda = [ [['['],[],['mg'],False] ]  # initialise the agenda
+    possible = len(s)>=2 and s[0]=='[' and s[-1]==']'
+    if possible: # only sentence with at least [ and ] are going to be grammatical
+        agenda = [ [['['],[],['mg'],False] ]  # initialise the agenda
+    else:
+        return (False,[])
     parses = [] # this will be our output
     while len(agenda)>0: # keep parsing as long as we have incomplete parses
         for parse in agenda:
@@ -289,8 +293,14 @@ def probability(s,bigrams,ops):
     """
 
     s = s.split(' ') # make the string into a list
-    agenda = [ [['['],[],['mg'],False,0.] ]  # initialise the agenda
     parses = ((log0,[]),(log0,[])) # these will be our outputs: (sum prob,parses). First is all parses, second excludes parses with pointless buffer-clearing
+
+    possible = len(s)>=2 and s[0]=='[' and s[-1]==']'
+    
+    if possible: # only sentence with at least [ and ] are going to be grammatical
+        agenda = [ [['['],[],['mg'],False,0.] ]  # initialise the agenda
+    else:
+        return parses
     while len(agenda)>0: # keep parsing as long as we have incomplete parses. We have a chance to bail if there's a bad transition
         for parse in agenda:
             print("\nparse: %s"%parse)
@@ -299,14 +309,15 @@ def probability(s,bigrams,ops):
                 (all_parses,useful_parses)=parses 
                 all_parses = (log_add(all_parses[0],parse[4]), all_parses[1]+[parse]) # add prob of this parse to total prob
                 copy_clear = [op for op in parse[2] if op !='mg'] # get just the non-merge operations
-                useful=True
-                for i in range(len(copy_clear)): # look for an instance of clear not followed by a copy
-                    #print ("i=%i"%i)
-                    #print (copy_clear)
-                    if copy_clear[i]=='clear' and (i==len(copy_clear)-1 or copy_clear[i+1] !='copy') :
-                        useful=False # if you find one this isn't a useful parse
-                        break
-                if useful:
+                #useful=True
+                if copy_clear==[] or copy_clear[-1]!='clear':
+                # for i in range(len(copy_clear)): # look for an instance of clear not followed by a copy
+                #     #print ("i=%i"%i)
+                #     #print (copy_clear)
+                #     if copy_clear[i]=='clear' and (i==len(copy_clear)-1 or copy_clear[i+1] !='copy') :
+                #         useful=False # if you find one this isn't a useful parse
+                #         break
+                #if useful:
                     useful_parses = (log_add(useful_parses[0],parse[4]), useful_parses[1]+[parse])
                 parses=(all_parses,useful_parses)
                 agenda.remove(parse)
