@@ -45,8 +45,8 @@ def log_add(logx,logy):
 
 
 # outputs and states look like this: 
-#( ( string generated, buffer for copying, prob of string ) , (last word added , last operation) )
-START_STATE = ((['['],[],0.),('[','mg'))
+#( ( string generated, buffer for copying, prob of string ) , (last word added , last operation, cleared) )
+START_STATE = ((['['],[],0.),('[','mg',False))
 
 
 ######### OPERATIONS ############
@@ -107,22 +107,23 @@ def move(current,new_state,bigrams,ops):
                  states: pair of (state in bigrams, state in ops)
     """
     ( (string,buf,p),
-    (last_word,last_op) ) = current
+    (last_word,last_op,cleared) ) = current
     
     if new_state=='copy':
         assert new_state in ops[last_op].keys() , "you can't copy after %s"%last_op
         assert len(buf)>0 , "you can't copy an empty buffer"
-        out= ( copy(string,buf,p,ops[last_op]['copy']), (last_word,'copy') )
+        out= ( copy(string,buf,p,ops[last_op]['copy']), (last_word,'copy',False) )
     elif new_state=='clear':
         #assert not cleared , "You can't clear again already"
         assert len(buf)>0 , "you can't clear an empty buffer"
+        assert cleared==False , "you can't clear again until you copy"
         assert new_state in ops[last_op].keys() , "you can't clear after %s"%last_op
-        out= ( clear(string,buf,p,ops[last_op]['clear']), (last_word,'clear') )
+        out= ( clear(string,buf,p,ops[last_op]['clear']), (last_word,'clear',True) )
     else:
         assert (len(new_state)==2 and new_state[0]=='mg') , "bad operation name"
         assert new_state[0] in ops[last_op].keys() , "you can't merge after %s"%last_op
         (op,next_word)=new_state
-        out= ( merge(string,buf,p,ops[last_op]['mg'],last_word,next_word,bigrams) , (next_word,'mg') )
+        out= ( merge(string,buf,p,ops[last_op]['mg'],last_word,next_word,bigrams) , (next_word,'mg',cleared) )
     print("string: %s"%(' '.join(out[0][0])))
     print("buffer: %s"%(' '.join(out[0][1])))
     print("p: %f\n"%out[0][2])
