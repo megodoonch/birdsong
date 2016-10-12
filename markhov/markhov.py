@@ -350,7 +350,7 @@ def probability(s,bigrams,ops):
                         new_parse[2].append('copy') # add operation to operation list 
                         new_parse[3]=False # the last special operation was not Clear
                         last_op=parse[2][-1]
-                        print last_op
+                        print (last_op)
                         new_parse[4]=parse[4]+ops[last_op]['copy']
                         new_parse[5]=parse[5]+len(parse[1]) # skip ahead in the string
                         print ("new parse : %s"%new_parse)
