@@ -41,94 +41,45 @@ def log_add(logx,logy):
     # (i.e. here we use log(X)+log(Y) = log(X)+log(1.0+exp(log(Y)-log(X)))
     return logx + np.log(1.0 + np.exp(negdiff))
 
+#### OPERATIONS PFSAs #######
+
+def ops_log(ops):
+    for a in ops:
+        for b in ops[a]:
+            for w in ops[a][b]:
+                ops[a][b][w]=np.log(ops[a][b][w])
+    return ops
+
+
+ops = {'S':{'COPY':{'mg':1.}}, # from start we have to merge
+       'COPY':{'COPY':{'mg':0.4,'copy':0.1}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
+               'CLEAR_S':{'clear':0.1}, # go here to clear the buffer
+               'F':{'end':0.5} # go here to end
+           },
+       'CLEAR_S':{'CLEAR':{'mg':1.}}, # this is where we've just cleared. Buffer is empty so you can only Merge
+       'CLEAR':{'CLEAR':{'mg':0.5}, # the last special op was Clear so we can Copy or Merge.
+                'COPY':{'copy':0.5} # if we Copy, the last special op was Copy so go to COPY
+            },
+       'F':{} #final state
+   }
+
+ops=ops_log(ops)
+
+bi_ops = {'S':{'S':{'mg':0.5},
+               'F':{'end':0.5}
+           },
+          'F':{}
+      }
+
+bi_ops=ops_log(bi_ops)
 
 
 
-# outputs and states look like this: 
-#( ( string generated, buffer for copying, prob of string ) , (last word added , last operation, cleared) )
-START_STATE = ((['['],[],0.),('[','mg',False))
+##### PRINT #####
 
-
-######### OPERATIONS ############
-
-
-def copy(string, buf, p, p_copy):
-    """Copies the buffer, appends it to both string and buffer, multiplies in prob of copying.
-    Arguments:
-    string : string list. The string you're actually generating
-    buf    : string list. The buffer you might copy
-    p      : float. The current probability of the string
-    p_copy : float. The probability of transitioning to Copy 
-               from whereever we currently are in the ops FSM
-    """
-    string+=buf
-    buf+=buf
-    return (string,buf,p+p_copy)
-
-def clear(string, buf,p, p_clear):
-    """Clear the buffer, multiplies in prob of clearing.
-    Arguments:
-    string : string list. The string you're actually generating
-    buf    : string list. The buffer you might copy
-    p      : float. The current probability of the string
-    p_clear : float. The probability of transitioning to Clear 
-               from whereever we currently are in the ops FSM
-    """
-
-    return (string, [], p+p_clear)
-
-def merge(string,buf,p,p_merge,last_word,next_word,bigrams):
-    """Adds a new word to the end of the string and buffer, multiplies in prob of merging.
-    Arguments:
-    string    : string list. The string you're actually generating
-    buf       : string list. The buffer you might copy
-    p         : float. The current probability of the string
-    p_merge   : float. The probability of transitioning to Merge
-               from whereever we currently are in the ops FSM
-    last_word : the current state in the bigrams FSM
-    next_word : the word we're trying to append
-    """
-    string=string[:] #why do I have to do this???
-    buf=buf[:]
-    string.append(next_word)
-    buf.append(next_word)
-    return (string, buf, p+p_merge+bigrams[last_word][next_word])
-
-
-
-##### applying the move #######
-
-def move(current,new_state,bigrams,ops):
-    """
-    Applies the move we want given in new_state to current output and states
-    Arguments:
-    current    : pair of current output and current state
-                 current output: triple of (string,buffer,probability)
-                 states: pair of (state in bigrams, state in ops)
-    """
-    ( (string,buf,p),
-    (last_word,last_op,cleared) ) = current
-    
-    if new_state=='copy':
-        assert new_state in ops[last_op].keys() , "you can't copy after %s"%last_op
-        assert len(buf)>0 , "you can't copy an empty buffer"
-        out= ( copy(string,buf,p,ops[last_op]['copy']), (last_word,'copy',False) )
-    elif new_state=='clear':
-        #assert not cleared , "You can't clear again already"
-        assert len(buf)>0 , "you can't clear an empty buffer"
-        assert cleared==False , "you can't clear again until you copy"
-        assert new_state in ops[last_op].keys() , "you can't clear after %s"%last_op
-        out= ( clear(string,buf,p,ops[last_op]['clear']), (last_word,'clear',True) )
-    else:
-        assert (len(new_state)==2 and new_state[0]=='mg') , "bad operation name"
-        assert new_state[0] in ops[last_op].keys() , "you can't merge after %s"%last_op
-        (op,next_word)=new_state
-        out= ( merge(string,buf,p,ops[last_op]['mg'],last_word,next_word,bigrams) , (next_word,'mg',cleared) )
-    print("string: %s"%(' '.join(out[0][0])))
-    print("buffer: %s"%(' '.join(out[0][1])))
-    print("p: %f\n"%out[0][2])
-    return out
-    
+def parse2string(parse):
+    (bis,buf,ops,cleared,inds)=parse
+    return "\nbigrams: %s\nbuffer: %s\noperations: %s\ncleared: %s\ni: %s"%(' '.join(bis),' '.join(buf),' '.join(ops),cleared,' '.join([str(i) for i in inds]))
 
 
 
@@ -159,45 +110,82 @@ def next_step(current,chain):
 
 ########### GENERATE A SENTENCE ##############
 
-def generate(bigrams,operations,start=START_STATE):
+def step(state,ops):
     """
-    Generates a sentence according to the probabilities of the operations and bigrams
-    Arguments:
-    start      : start state, usually ((['['],[],0.),('[','mg'))
-    bigrams    : bigram markhov chain
-    operations : operation markhov chain
-
-    Output     : full state: ( (sentence,buffer,prob) (last word,last op) )
+    Chooses a next state in ops PFSM based on probabilities in machine
     """
-    state=start[:] # start with the start state
-    def step(st):        
-        """randomly chooses a move
-        Arguments:
-        st : pair of current output and states
-        """
-        current_out,current_states=st 
-        if len(current_out[1])==0: # if we have no buffer, we can only Merge
-            next_op = 'mg'
-        else:   
-            next_op = next_step(current_states[1],operations) # randomly choose next operation
-        print(next_op)
-        next_state=next_op # if copy or clear, this is the next state
-        if next_op=='mg': 
-            next_wd=next_step(current_states[0],bigrams) # get the next word if Merging
-            next_state=(next_op,next_wd) # need to include next word in merge state
-        return move((current_out,current_states),next_state,bigrams,operations) # apply the move
-        
-    while state[0][0][-1] != ']': #stop when we get to the end symbol
-        state=step(state)
-    
-    print ("sentence: %s\n"%(' '.join(state[0][0])))
-    return state
+    p=np.log(random.random()) # random prob for deciding next move
+    # we'll look for an interval in the probs of out-arrows in which p falls. 
+    current_p=log0 # this is the bottom of the first interval
+    nexts=ops[state] # possible next states
 
+    for st in nexts:
+        #print(st)
+        for op in nexts[st]:
+            #print (op)
+            p_next=nexts[st][op] # the prob of this arrow
+            #print (p_next)
+            #print ("is %0.5f < %0.5f < %0.5f?"%(current_p,p,p_next))
+            if p>=current_p and p < log_add(p_next,current_p): # if the random prob falls between the last prob and this one, we've found our result
+                #print (st,op,p)
+                return (st,op,p_next) # this is it!
+            else:
+                current_p=log_add(p_next,current_p) #otherwise, move bottom of interval up
+
+
+
+def generate_ops(ops):
+    """
+    Generates a string of operation based on ops PFSM
+    """
+    state='S'
+    out=[]
+    p=0.
+    next_step=step(state,ops)
+    while next_step!=None:
+        out.append(next_step[1])
+        p=p+next_step[2]
+        next_step=step(next_step[0],ops)
+    return out,p
+
+
+def generate_string(op_string,bigrams):
+    """Generates string based on operation string and bigrams markhov chain"""
+    s=["["] # we need a start string to calculate transitional probs for starting
+    b=[]
+    for op in op_string:
+        if op=='mg':
+            next_word=next_step(s[-1],bigrams)
+            s.append(next_word)
+            b.append(next_word)
+        elif op=='copy':
+            s+=b
+            b+=b
+        elif op=='clear':
+            b=[]
+        elif op=='end':
+            s.append(']')
+            print (' '.join(s))
+            return s
+        else: 
+            print("bad operation name")
+
+
+##wrapper
+def gen(bigrams,ops):
+    return generate_string(generate_ops(ops)[0],bigrams)
+
+def gen_corpus(bigrams,ops,n):
+    i=0
+    corpus=[]
+    while i<n:
+        corpus.append(gen(bigrams,ops))
+    return corpus
 
 
 ######### PARSE ###########
 
-def parse(s,bigrams):
+def parse(s,bigrams,verbose=False):
     """
     Parses a string
     Uses an agenda and a list of complete parses.
@@ -213,162 +201,103 @@ def parse(s,bigrams):
     bigrams : bigram markhov chain
     """
 
-    s = s.split(' ') # make the string into a list
-    possible = len(s)>=2 and s[0]=='[' and s[-1]==']'
-    if possible: # only sentence with at least [ and ] are going to be grammatical
-        agenda = [ [['['],[],['mg'],False] ]  # initialise the agenda
-    else:
-        return (False,[])
+    #s = s.split(' ') # make the string into a list
+    #s=['[']+s+[']']
+    n=len(s)#-1
+    #possible = n>0 and s[0]=='['
+    #if possible: # only sentence with at least [ and ] are going to be grammatical
+    agenda = [ (['['],[],[],False,[0,1]) ]  # initialise the agenda
+    #else:
+    #    return (False,[])
     parses = [] # this will be our output
     while len(agenda)>0: # keep parsing as long as we have incomplete parses
-        for parse in agenda:
-            print("\nparse: %s"%parse)
-            i=len(parse[0])
-            if i==len(s): # move a complete parse over to the output
-                parses.append(parse)
+        # try to extend all partial parses in all possible ways
+        if verbose: print ("\nAgenda to copy and clear: %i"%len(agenda))
+        for parse in agenda:            
+            if verbose: print("\nparse to copy/clear: %s"%parse2string(parse))
+            (bis,buf,ops,cleared,indices)=parse
+            if verbose: print (parse)
+            i=indices[-1]
+            if i==n: # move a complete parse over to the output
                 agenda.remove(parse)
+                new_bis=bis[:]
+                #new_bis.append(']')
+                new_buf=buf[:]
+                new_ops=ops[:]
+                new_ops.append('end')
+                new_indices=indices[:]
+                final_parse = (new_bis,new_buf,new_ops,cleared,new_indices)
+                parses.append(final_parse)
+
             else:
-                if len(parse[1])>0: # if buffer not empty
+                if len(buf)>0: # if buffer not empty
                     ## try clearing the buffer
-                    print ("\n Clear")
-                    if not parse[3]:  #i if last special op not clear
-                        new_parse=[[],[],[],[]] # this is to make copies of the lists inside the list
-                        new_parse[0]=parse[0][:] # copy the string
-                        new_parse[2]=parse[2][:] # copy the list of operations
-                        new_parse[1]=[] # clear the buffer
-                        new_parse[2].append('clear')
-                        new_parse[3]=True # the last special op was Clear
-                        print ("new parse: %s"%new_parse)
+                    if verbose: print ("\n Clear")
+                    if not cleared:  #i if last special op not clear
+                        # this is to make copies of the lists inside the list
+                        new_bis=bis[:]
+                        new_ops=ops[:]
+                        new_ops.append('clear') # copy the list of operations
+                        new_indices=indices[:]
+                        new_parse=(new_bis,[],new_ops,True,new_indices)
+                        if verbose: print ("new parse: %s"%parse2string(new_parse))
                         agenda.append(new_parse) # add this new parse to the agenda
 
                     #Try to Copy
-                    print ("\n Copy")
-                    print ("buffer ",parse[1])
-                    print ("copy? ", s[i : i+len(parse[1])])
+                    if verbose: print ("\n Copy")
+                    if verbose: print ("buffer ",buf)
+                    copy_end = i+len(buf)
+                    if verbose: print ("copy? ", s[i : copy_end])
                     # if the buffer is the same as the next part of the sentence
-                    if i+len(parse[1]) <= len(s) and parse[1]==s[i : i+len(parse[1])]: 
-                        new_parse=[[],[],[],[]] # make a deep copy
-                        new_parse[2]=parse[2][:] # copy the list of operations
-                        new_parse[0]=s[:i+len(parse[1])] # skip ahead to end of copy in the string
-                        new_parse[1]=parse[1][:]+parse[1][:] #add copy to buffer
-                        new_parse[2].append('copy') # add operation to operation list 
-                        new_parse[3]=False # the last special operation was not Clear
-                        print ("new parse : %s"%new_parse)
+                    if i+len(buf) <= n and parse[1]==s[i : copy_end]: 
+                        new_bis=bis[:]
+                        new_ops=ops[:]
+                        new_ops.append('copy') # copy the list of operations and add copy
+                        new_buf=buf[:]+buf[:] #add copy to buffer
+                        new_is=indices[:]
+                        new_is.append(copy_end)
+                        new_parse=(new_bis,new_buf,new_ops,False,new_is)
+                        if verbose: print ("new parse : %s"%parse2string(new_parse))
                         agenda.append(new_parse) # add the new parse to the agenda
 
+        if verbose: print ("\nAgenda to merge: %i"%len(agenda))
+        if verbose: 
+            for parse in agenda:
+                print(parse2string(parse))
+        for parse in agenda:            
+            if verbose: print("\nparse to merge: %s"%parse2string(parse))
+            (bis,buf,ops,cleared,indices)=parse
+            if verbose: print (parse)
+            i=indices[-1]
+            if i==n: # move a complete parse over to the output
+                agenda.remove(parse)
+                new_bis=bis[:]
+                #new_bis.append(']')
+                new_buf=buf[:]
+                new_ops=ops[:]
+                new_ops.append('end')
+                new_indices=indices[:]
+                final_parse = (new_bis,new_buf,new_ops,cleared,new_indices)
+                parses.append(final_parse)
+            else:
+       
                 # Try to Merge
-                print ("\n Merge")
+                if verbose: 
+                    print ("\n Merge")
+                    print (s[i])
+                    print(s[i-1])
                 if s[i] in bigrams[s[i-1]]:
-                    parse[0].append(s[i]) #string
-                    parse[1].append(s[i]) #buffer
-                    parse[2].append('mg') #list of ops
-                    print ("merged parse: %s"%parse)
+                    bis.append(s[i]) #string
+                    buf.append(s[i]) #buffer
+                    ops.append('mg') #list of ops
+                    indices.append(i+1) # advance by 1
+                    if verbose: print ("merged parse: %s"%parse2string(parse))
                 else:
                     return (False,parses) # if this isn't a legal transition, this sentence is not grammatical
 
     return (True,parses)
 
 
-
-def probability(s,bigrams,ops):
-    """
-    Parses a string and give the total probability of the parses.
-
-    Returns two different things: a total probability for all parses
-    and a total probability only for parses that don't have a Clear that isn't followed by a Copy.
-    
-    Uses an agenda and a list of complete parses.
-    We initialise the agenda with a start state,   [['['],[],['mg'],False,0.]
-    An agenda item is a list of 5 elements:
-    the string so far, the buffer, the operations, and whether the last "special" operation (copy or clear) is clear.
-    The second-last element is a little hack to reduce the amount of pointless buffer-clearing.
-    the last is the probability of the parse
-    We add onto an agenda item until it is a complete parse, in which case we move it to the output, parses
-    Whenever there is a choice of two valid moves, we copy the agenda item and try both
-        
-    Arguments:
-    s       : the string to be parsed -- string
-    bigrams : bigram markhov chain
-    ops     : operations markhov chain (mg,copy,clear)
-    """
-
-    s = s.split(' ') # make the string into a list
-    parses = ((log0,[]),(log0,[])) # these will be our outputs: (sum prob,parses). First is all parses, second excludes parses with pointless buffer-clearing
-
-    possible = len(s)>=2 and s[0]=='[' and s[-1]==']'
-    
-    if possible: # only sentence with at least [ and ] are going to be grammatical
-        agenda = [ [['['],[],['mg'],False,0.,1] ]  # initialise the agenda
-    else:
-        return parses
-    while len(agenda)>0: # keep parsing as long as we have incomplete parses. We have a chance to bail if there's a bad transition
-        for parse in agenda:
-            print("\nparse: %s"%parse)
-            i=parse[5]
-            if i==len(s): # move a complete parse over to the output
-                (all_parses,useful_parses)=parses 
-                all_parses = (log_add(all_parses[0],parse[4]), all_parses[1]+[parse]) # add prob of this parse to total prob
-                copy_clear = [op for op in parse[2] if op !='mg'] # get just the non-merge operations
-                #useful=True
-                if copy_clear==[] or copy_clear[-1]!='clear':
-                # for i in range(len(copy_clear)): # look for an instance of clear not followed by a copy
-                #     #print ("i=%i"%i)
-                #     #print (copy_clear)
-                #     if copy_clear[i]=='clear' and (i==len(copy_clear)-1 or copy_clear[i+1] !='copy') :
-                #         useful=False # if you find one this isn't a useful parse
-                #         break
-                #if useful:
-                    useful_parses = (log_add(useful_parses[0],parse[4]), useful_parses[1]+[parse])
-                parses=(all_parses,useful_parses)
-                agenda.remove(parse)
-            else:
-                if len(parse[1])>0: # if buffer not empty
-                    ## try clearing the buffer
-                    print ("\n Clear")
-                    if not parse[3]:  #i if last special op not clear
-                        new_parse=[[],[],[],[],[],[]] # this is to make copies of the lists inside the list
-                        new_parse[0]=parse[0][:] # copy the string
-                        new_parse[2]=parse[2][:] # copy the list of operations
-                        new_parse[1]=[] # clear the buffer
-                        new_parse[2].append('clear')
-                        new_parse[3]=True # the last special op was Clear
-                        new_parse[4]=parse[4]+ops[parse[2][-1]]['clear']
-                        new_parse[5]=parse[5] # we haven't advanced in the string
-                        print ("new parse: %s"%new_parse)
-                        agenda.append(new_parse) # add this new parse to the agenda
-
-                    #Try to Copy
-                    print ("\n Copy")
-                    print ("buffer ",parse[1])
-                    print ("copy? ", s[i : i+len(parse[1])])
-                    # if the buffer is the same as the next part of the sentence
-                    if i+len(parse[1]) <= len(s) and parse[1]==s[i : i+len(parse[1])]: 
-                        new_parse=[[],[],[],[],[],[]] # make a deep copy
-                        new_parse[2]=parse[2][:] # copy the list of operations
-                        new_parse[0]=parse[0][:] # we're really just keeping track of transitions
-                        new_parse[1]=parse[1][:]+parse[1][:] #add copy to buffer
-                        new_parse[2].append('copy') # add operation to operation list 
-                        new_parse[3]=False # the last special operation was not Clear
-                        last_op=parse[2][-1]
-                        print (last_op)
-                        new_parse[4]=parse[4]+ops[last_op]['copy']
-                        new_parse[5]=parse[5]+len(parse[1]) # skip ahead in the string
-                        print ("new parse : %s"%new_parse)
-                        agenda.append(new_parse) # add the new parse to the agenda
-
-                # Try to Merge
-                print ("\n Merge")
-                if s[i] in bigrams[s[i-1]]:
-                    parse[0].append(s[i]) #string
-                    parse[1].append(s[i]) #buffer
-                    parse[2].append('mg') #list of ops
-                    parse[4]=parse[4]+ops[parse[2][-1]]['mg']+bigrams[s[i-1]][s[i]]
-                    parse[5]=parse[5]+1 # advance down the string 1 step
-                    print ("merged parse: %s"%parse)
-                else:
-                    return parses # if this isn't a legal transition, this sentence is not grammatical
-
-    return parses
 
 
 def probability_bigrams(s,bigrams):
@@ -379,4 +308,93 @@ def probability_bigrams(s,bigrams):
     p=0.
     for i in range(1,len(s)):
         p+=bigrams[s[i-1]][s[i]]
+    return p
+
+
+def check_bigrams(s,bigrams):
+    """
+    Calculates the probability of the string based just on the bigrams
+
+    Arguments:
+    s       : sequence of merged words. If there's no copying this is the whole string; otherwise some is missing
+    bigrams : markhov chain of transitions implemented as dict
+    """
+    p=0.
+    for i in range(1,len(s)):
+        if s[i-1] in bigrams and s[i] in bigrams[s[i-1]]:
+            p+=bigrams[s[i-1]][s[i]]
+        else: return (False,log0)
+    return (True,p)
+
+
+
+
+
+def check_ops(op_list,ops,verbose=False):
+    """
+    Checks the validity of a sequence of operations. 
+    Returns probability of that sequence
+
+    Arguments:
+    op_list : sequence of operations chosen from mg,copy,clear,end
+    ops     : PFSM of operations implemented as dict
+    """
+    p=0.
+    state='S'
+    valid=True # valid parse
+    while len(op_list)>0 and valid: # we stop if we run out of operations or we realise this isn't even a valid parse
+        if verbose: print("Current state: %s"%state)
+        if verbose: print (op_list)
+        op=op_list[0] # take the first operation
+        nexts=ops[state] # find the out-arrows
+        next_state=None # initialise next state
+        new_p=log0 # initialise prob of transition
+        for st in nexts: # look through out arrows
+            if verbose: print (st)
+            if op in nexts[st].keys(): # if this is the right arrow
+                new_p=nexts[st][op] # prob of transition
+                next_state=st # new state
+                break # we're done here
+        p+=new_p # multiply in new prob
+        valid=next_state!=None # if we didn't find a state to transition to, the parse is invalid
+        op_list=op_list[1:] # onto the next operation. I think I'm being overly OCamly here.
+        state=next_state # onto the next state
+
+    return (valid and state=='F',p) # it's valid if we didn't run into a problem and we end in a final state
+
+
+def prob_parse(parse,bigrams,ops):
+    """
+    Finds the probability of a single parse given both machines
+
+    Arguments:
+    parse   : (bigram string, buffer, operations used, last special op was Clear, list of indices we considered)
+    bigrams : Markhov chain of alphabet (dict)
+    ops     : PFSM of operations (dict)
+    """
+    bis = parse[0]
+    op_list = parse[2]
+    #print(check_bigrams(bis,bigrams))
+    #print(check_ops(op_list,ops))
+    return check_bigrams(bis,bigrams)[1] + check_ops(op_list,ops)[1] # multiply probs
+
+
+def prob_string(s,bigrams,ops,verbose=False):
+    """
+    finds the total probability of a string given the operations and bigrams
+
+    s      : sentence (string list)
+    bigrams: markhov chain of alphabet members (dict)
+    ops    : PFSM of operations (dict)
+    """
+    parses=parse(s,bigrams)
+    p=log0
+    if not parses[0]:
+        print ("not a valid sentence")
+        return log0
+    for i,par in enumerate(parses[1]):
+        new_p=prob_parse(par,bigrams,ops)
+        if verbose: print("parse %i: %.5f"%(i,new_p))
+        p = log_add(p,new_p)
+    print ("total prob: %.5f"%p)
     return p
