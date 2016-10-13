@@ -26,12 +26,19 @@ def bis_log(bigrams):
     return bigrams
 
 
-bigrams = {'a':{'a':0.5,'b':0.25,']':0.25},
-           'b':{'b':0.5,'a':0.25,']':0.25},
+bigrams = {'a':{'a':0.5,'b':0.5},
+           'b':{'b':0.5,'a':0.5},
            '[':{'a':0.5,'b':0.5}
        }
 
 bigrams=bis_log(bigrams)
+
+bigrams_ends = {'a':{'a':0.5,'b':0.25,']':0.25},
+           'b':{'b':0.5,'a':0.25,']':0.25},
+           '[':{'a':0.5,'b':0.5}
+       }
+
+bigrams_ends=bis_log(bigrams_ends)
 
 
 # markhov chain of operations

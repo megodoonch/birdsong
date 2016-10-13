@@ -95,7 +95,11 @@ def next_step(current,chain):
     """
     p=np.log(random.random()) # random prob for deciding next move
     #print(p)
-    nexts = chain[current]
+    if current in chain:
+        nexts = chain[current]
+    else:
+        return
+        
     current_p = log0 # set the floor to 0
     for o in nexts.keys():
         prob=nexts[o] # get next prob
@@ -104,7 +108,8 @@ def next_step(current,chain):
             return o
         else:
             current_p=log_add(prob,current_p) # if not, set the floor for the next interval to check
-    return ("no transition")
+    print ("no transition")
+    return
             
 
 
@@ -156,6 +161,9 @@ def generate_string(op_string,bigrams):
     for op in op_string:
         if op=='mg':
             next_word=next_step(s[-1],bigrams)
+            if next_word==None:
+                print ("no transition")
+                return
             s.append(next_word)
             b.append(next_word)
         elif op=='copy':
@@ -164,22 +172,83 @@ def generate_string(op_string,bigrams):
         elif op=='clear':
             b=[]
         elif op=='end':
-            s.append(']')
             print (' '.join(s))
             return s
         else: 
             print("bad operation name")
 
+def generate_string_ends(op_string,bigrams):
+    """Generates string based on operation string and bigrams markhov chain.
+    Requires end markers in the bigrams
+     and requires that the ops end exactly when the bigrams do"""
+    s=["["] # we need a start string to calculate transitional probs for starting
+    b=[]
+    #print (op_string)
+    #print (s)
+    for op in op_string:
+        #print (op)
+        #print (s)
+        if s[-1]==']':
+            if op=='end':
+                print (' '.join(s))
+                return s
+            else:
+                print ("end marker before end operation")
+                return
+        if op=='mg':
+            next_word=next_step(s[-1],bigrams)
+            if next_word==None:
+                print ("no transition")
+                return
 
-##wrapper
+            s.append(next_word)
+            b.append(next_word)
+        elif op=='copy':
+            s+=b
+            b+=b
+        elif op=='clear':
+            b=[]
+        elif op=='end':
+            if s[-1]==']':
+                print  (' '.join(s))
+                return s
+            else:
+                print("end operation before end marker")
+                return
+        else: 
+            print("bad operation name")
+            return
+
+
+            
+##wrappers
 def gen(bigrams,ops):
     return generate_string(generate_ops(ops)[0],bigrams)
 
+def gen_ends(bigrams_ends,ops):
+    return generate_string_ends(generate_ops(ops)[0],bigrams_ends)
+
+
 def gen_corpus(bigrams,ops,n):
+    """
+    generates a corpus without end markers in the bigrams
+    """
     i=0
     corpus=[]
     while i<n:
         corpus.append(gen(bigrams,ops))
+    return corpus
+
+
+def gen_corpus_ends(bigrams,ops,n):
+    """
+    generates a corpus with end markers in the bigrams
+    """
+    corpus=[]
+    while len(corpus)<n:
+        s = gen_ends(bigrams,ops)
+        if s!=None:
+            corpus.append(s)
     return corpus
 
 
