@@ -46,7 +46,7 @@ In the bigram grammar PFSA there are only two states:
 * F : final state
 You can transition from S to F only on the operation End. Merge is a loop back to S.
 
-![operations in bigram grammar](markhov/bi_ops.pdf)
+![operations in bigram grammar](markhov/bi_ops.png)
 
 
 In the Copy grammar PFSA the states are as follows:
@@ -56,7 +56,7 @@ In the Copy grammar PFSA the states are as follows:
 * CLEAR_S : this is like the start state but for the buffer. This is exactly for clearing. From here you must Merge, which takes you to CLEAR
 * CLEAR : from here you can Merge and Copy. YOu can't clear because that makes too many damn parses.
 
-![operations in copy](markhov/ops.pdf)
+![operations in copy](markhov/ops.png)
 
 
 ### bigrams

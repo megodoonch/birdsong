@@ -4,6 +4,13 @@
 parse_*.pdf
 parse_*.png
 
+ops.pdf
+ops.png
+ops.ps
+bi_ops.pdf
+bi_ops.png
+bi_ops.ps
+
 .tmp.dot
 
 readme.html
