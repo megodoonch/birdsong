@@ -254,6 +254,15 @@ def gen_corpus_ends(bigrams,ops,n):
 
 ######### PARSE ###########
 
+
+#TODO
+def clean_parses(parses):
+    """removes ones with clear at the end
+    call this at the end of parse
+    """
+    return parses
+
+
 def parse(s,bigrams,verbose=False):
     """
     Parses a string
@@ -265,9 +274,12 @@ def parse(s,bigrams,verbose=False):
     We add onto an agenda item until it is a complete parse, in which case we move it to the output, parses
     Whenever there is a choice of two valid moves, we copy the agenda item and try both
         
-    Arguments:
+    Arguments
     s       : the string to be parsed -- string
     bigrams : bigram markhov chain
+
+    Returns
+    ()
     """
 
     #s = s.split(' ') # make the string into a list
@@ -364,7 +376,7 @@ def parse(s,bigrams,verbose=False):
                 else:
                     return (False,parses) # if this isn't a legal transition, this sentence is not grammatical
 
-    return (True,parses)
+    return (True,clean_parses(parses))
 
 
 

@@ -15,6 +15,8 @@
 	* `development.py` has some old functions that I don't want to throw away just yet
 	  
 
+## terminology
+
 ## Markhov model
 
 This grammar works as follows: there are four operations, Merge, Copy, Clear, and End. As we build the sentence we also build a buffer which is a suffix of the sentence so far. Merge adds a word to both sentence and buffer. Copy appends the buffer to both the sentence and the buffer itself, and Clear clears the buffer. End ends the sentence.  The transition from one operation to another has a transitional probability and so does the transition from one word to the next.
@@ -33,7 +35,7 @@ The main functions in `markhov.py` are:
 * `prob_parse` finds the probability of a single parse by multiplying the probabilities of the bigram sequence and the operation sequence
 * `prob_string` calculates the total probability of a string by adding the probabilities of the parses 
 
-
+**TODO** *Call the operations and bigrams "Automata" rather than grammars*
 
 ### operations
 
