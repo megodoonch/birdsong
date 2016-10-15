@@ -80,8 +80,15 @@ We have a 2-step grammar. Ops generates a derivation "tree" (really a sequence) 
 **Something might be off about the ending transitions. Should we really be encoding them with both the edge marker and the end operation?**
 
 
+### CKY parsing
+
+**Development notes**
+
+I tried to put all parse strings into the same cky chart. This doesn't work. The cky parser predicts strings that are not in the original set of parse strings.
+
+
+
 ## Plan
-* Read into formward-backward algorithm for training operations probabilities
 * Read more about training two things at once
 
 ## Misc notes

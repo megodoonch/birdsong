@@ -253,7 +253,14 @@ def parse(s,psg,bis=None,bigram_chain=None):
     return chart
 
 
-def outside(chart,psg,start='S'):
+def get_p_sent(charts,start="S"):
+    p_sent = 0.
+    for chart in charts:
+        p_sent+=get_p_parse(chart,start)
+    return p_sent
+
+
+def outside(chart,psg,start_beta=1.,start='S'):
 
     # initialise all betas to 0
     for i in chart:
@@ -262,7 +269,7 @@ def outside(chart,psg,start='S'):
         for lhs in chart[i]['lex']:
             chart[i]['lex'][lhs]['beta']=0.
 
-    chart[0]['phrase'][start]['beta']=1. # initialise top right start to 1
+    chart[0]['phrase'][start]['beta']=start_beta # initialise top right start to proportion of sentence prob this parse represents
     c=start
     def beta_cell(i,c): 
         """row i, category c"""
@@ -293,5 +300,90 @@ def outside(chart,psg,start='S'):
     print(chart2string_beta(chart))
     return chart
 
+
+def get_p_parse(chart,start='S'):
+    return chart[0]['phrase'][start]['p']
+
+def get_p_rule(rule,psg):
+    (lhs,rhs)=rule
+    for (r,p) in psg[lhs]:
+        if r==rhs:
+            return p
+    
+
+def c_phi(rule,charts,psg,start='S'):
+    """
+    Calculates the expected counts of a rule based on its parses
+
+    We need to calculate the probability of the sentence from the separate parses
+    The instances of a rule are pooled across parses
+    """
+
+    p_sent = 0.
+    for chart in charts:
+        p_sent+=get_p_parse(chart,start)
+    print("prob s: %f"%p_sent)
+
+    p_rule=get_p_rule(rule,psg)
+    print("prob rule: %f"%p_rule)
+
+    (lhs,rhs)=rule
+    tot_uses=0.
+    for chart in charts: # go through all parses
+        uses=0.
+        for i in chart: # all rows
+            p_parse=get_p_parse(chart,start)
+            if lhs in chart[i]['phrase']: 
+                mother=chart[i]['phrase'][lhs] # 
+                beta=mother['beta'] # outside prob: prob this was used in the parse
+                if beta>0: # only bother continuing if we'renot going to get 0
+                    bps = mother['bp']
+                    for r in bps: # go through all backpointers
+                        if r==rhs: # this is a bp for our rule
+                            if len(r)==2: # branching node: go get inside probs of daughters
+                                left,right=rhs[0],rhs[1]
+                                p_left=chart[i]['lex'][left]['p']
+                                p_right=chart[i+1]['phrase'][right]['p']
+                                use_p = beta*p_left*p_right # calculate prob
+                                print("rhs: %s %s p: %fx%fx%f=%f"%(left,right,beta,p_left,p_right,use_p))
+                            elif len(r)==1: # lexical rule: just use beta
+                                use_p=beta
+                                print ("lex", rhs)
+                            else: print ("error in c_phi: wrong length of backpointer")
+                            print ("p this use: %f"%use_p)
+                            uses+=use_p # add in this prob
+
+            if lhs in chart[i]['lex']: # lexical cells are always lexical rules
+                mother=chart[i]['lex'][lhs] # 
+                beta=mother['beta'] # outside prob: prob this was used in the parse
+                if beta>0:
+                    bps=mother['bp']
+                    for r in bps: # go through all backpointers
+                        if r==rhs: # this is a bp for our rule
+                            if len(r)==1:
+                                uses+=beta
+                                print ("rhs: %s p: %f"%(rhs,beta))
+                            else: print("weird rule")
+        tot_uses+=uses*(1/p_parse)
+
+    print (tot_uses)
+    return p_rule*tot_uses
+            
+    
+
+def get_c_phi(rule,parses,psg,start='S',bigrams=None):
+    """wrapper"""
+
+    charts=[]
+    for (ops,bis) in parses:
+        charts.append(parse(ops,psg,bis,bigrams)) # initial parse with inside probs
+        
+    p_sent = get_p_sent(charts) # probability of the sentence
+
+    for chart in charts:
+        p_chart= get_p_parse(chart)
+        chart=outside(chart,psg,p_chart/p_sent,start) # outside probs
+
+    return c_phi(rule,charts,psg,start)
 
 
