@@ -1,0 +1,79 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amsthm}
+ \usepackage{amsfonts}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+
+\title{People who want to parse bigrams and finite state machines\\good}
+\author{Meaghan ``geitje'' Fowlie and Floris ``konijntje'' van Vugt}
+
+
+\begin{document}
+
+\maketitle
+
+\section{Definitions}
+
+\newcommand\STATES{\textsc{States}}
+\newcommand\OPS{\textsc{Operations}}
+\newcommand\BIGR{\textsc{Bigrams}}
+\newcommand\FSA{\textsc{FSA}}
+\newcommand\PARSES{\textsc{Parses}}
+\newcommand\SC{\textsc{StateCounts}}
+\newcommand\TC{\textsc{TransCounts}}
+\newcommand\N{\mathbb{N}}
+
+The set of all possible states is $\STATES$ and the set of all operations is $\OPS$ and the set of all bigrams is $\BIGR$
+
+
+
+\begin{definition}[finite state machines]
+  A finite state automaton (Meaghan TODO) $\FSA$
+  Set of tuples $(q_i,e,q_j)$ where $q_i,q_j\in\STATES$ and $e\in\OPS$ meaning that you can transition from state $q_i$ to $q_J$ by emitting $e$.
+\end{definition}
+
+\begin{definition}[transition probabilities]
+  A probability assignment $\phi$ is a function from elements of the finite state automaton (i.e. transitions) to probabilities, such that the sum of all probabilities with the same left hand side is 1 (TODO: make that precise).
+\end{definition}
+
+
+\begin{definition}[route]
+  A \emph{route} is a route through the $\FSA$ of say $n$ steps, defined as a tuple $(Q,E)$ where $Q$ is the sequence of states visited, i.e.
+  $Q=(q_i\in\STATES|i<n)$, and $E$ is the sequence of emissions, i.e. $E=(e_i\in\OPS|i<n-1)$.
+\end{definition}
+
+
+\begin{definition}[parse]
+  A \emph{parse} is what Meaghan's fanatic function currently outputs, more or less.
+  Given a sentence $s$ we define a set $\PARSES(s) = \{ (b,r) \}$ where each $b$ is a sequence of alphabet elements (bigrams), and $r$ is a route through the operations $\FSA$.
+\end{definition}
+
+
+\begin{definition}[state counts]
+  Given a route $(Q,E)$, we define $\SC_Q : \STATES \rightarrow\N$ as follows: $\SC_Q(q) = \#\{ q'\in \STATES | q'=q \}$
+\end{definition}
+
+
+\begin{definition}[transition counts]
+  Given a route $(Q,E)$, we define $\TC_{Q,E} : \FSA \rightarrow\N$ as follows: $\TC_{Q,E}(q,e,q') = \#\{ i<n | Q(i)=q,E(i)=e,Q({i+1})=q'\}$
+\end{definition}
+
+
+\begin{definition}[update rule]
+  Given a sentence $s$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
+
+  $$\phi'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC(q,e,q')}{\SC(q)}$$
+\end{definition}
+
+We can write more simply $p_\phi(s)=\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')$ so that
+
+$$\phi'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC(q,e,q')}{\SC(q)}$$
+
+
+
+
+
+\end{document}
