@@ -74,6 +74,34 @@ bi_ops = {'S':{'S':{'mg':0.5},
 bi_ops=ops_log(bi_ops)
 
 
+s1 = "mg mg end".split(' ')
+s2 = "mg copy end".split(' ')
+bis1 = "[ a a".split(' ')
+bis2= "[ a".split(' ')
+
+
+s1="mg clear mg copy mg end".split(' ')
+s2="mg mg mg mg end".split(' ')
+bis1="[ a b a".split(' ')
+bis2="[ a b b a".split(' ')
+
+parses = [(s1,bis1),(s2,bis2)]
+
+for lhs in ops_psg:
+    for (rhs,p) in ops_psg[lhs]:
+        print lhs,rhs,get_c_phi((lhs,rhs),parses,ops_psg,bigrams)
+
+
+
+rule=('S',['MG','NotCL'])
+
+mg = ('MG',['mg'])
+
+copy= ('COPY',['copy'])
+
+
+
+
 
 
 
