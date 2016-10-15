@@ -4,17 +4,17 @@ digraph  { rankdir=LR;
 	F [shape=doublecircle];
 	
 
-	S->COPY [label=merge];
+	S->NotCL [label=merge];
 	
-	COPY->COPY [label=merge];
-	COPY->COPY [label=copy];
-	COPY->CLEAR_S [label=clear];
-	COPY->F [label=end];
+	NotCL->NotCL [label=merge];
+	NotCL->NotCL [label=copy];
+	NotCL->CL_S [label=clear];
+	NotCL->F [label=end];
 	
-	CLEAR_S->CLEAR [label=merge];
+	CL_S->CL [label=merge];
 	
-	CLEAR->CLEAR [label=merge];
-	CLEAR->COPY [label=copy];
+	CL->CL [label=merge];
+	CL->NotCL [label=copy];
 
 	
 
