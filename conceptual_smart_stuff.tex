@@ -1,5 +1,6 @@
 \documentclass[12pt]{article}
-
+\usepackage{mathptmx}% http://ctan.org/pkg/mathptmx
+\usepackage{times}
 \usepackage{amsmath}
 \usepackage{amsthm}
  \usepackage{amsfonts}
@@ -32,7 +33,7 @@ The set of all possible states is $\STATES$ and the set of all operations is $\O
 
 \begin{definition}[finite state machines]
   A finite state automaton (Meaghan TODO) $\FSA$
-  Set of tuples $(q_i,e,q_j)$ where $q_i,q_j\in\STATES$ and $e\in\OPS$ meaning that you can transition from state $q_i$ to $q_J$ by emitting $e$.
+  Set of tuples $(q_i,e,q_j)$ where $q_i,q_j\in\STATES$ and $e\in\OPS$ meaning that you can transition from state $q_i$ to $q_j$ by emitting $e$.
 \end{definition}
 
 \begin{definition}[transition probabilities]
