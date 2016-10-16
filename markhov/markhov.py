@@ -51,17 +51,22 @@ def ops_log(ops):
     return ops
 
 
-ops = {'S':{'COPY':{'mg':1.}}, # from start we have to merge
-       'COPY':{'COPY':{'mg':0.4,'copy':0.1}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
-               'CLEAR_S':{'clear':0.1}, # go here to clear the buffer
-               'F':{'end':0.5} # go here to end
+
+ops = {'S':{'NotCL':{'mg':1.}}, # from start we have to merge
+       'NotCL':{'NotCL':{'mg':0.25,'copy':0.25}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
+                'CLEAR_S':{'clear':0.25}, # go here to clear the buffer
+               'F':{'end':0.25} # go here to end
            },
        'CLEAR_S':{'CLEAR':{'mg':1.}}, # this is where we've just cleared. Buffer is empty so you can only Merge
        'CLEAR':{'CLEAR':{'mg':0.5}, # the last special op was Clear so we can Copy or Merge.
-                'COPY':{'copy':0.5} # if we Copy, the last special op was Copy so go to COPY
+                'NotCL':{'copy':0.5} # if we Copy, the last special op was Copy so go to COPY
             },
        'F':{} #final state
    }
+
+
+
+
 
 ops=ops_log(ops)
 
@@ -78,8 +83,8 @@ bi_ops=ops_log(bi_ops)
 ##### PRINT #####
 
 def parse2string(parse):
-    (bis,buf,ops,cleared,inds)=parse
-    return "\nbigrams: %s\nbuffer: %s\noperations: %s\ncleared: %s\ni: %s"%(' '.join(bis),' '.join(buf),' '.join(ops),cleared,' '.join([str(i) for i in inds]))
+    (bis,buf,(qs,ops),k)=parse
+    return "\nbigrams: %s\nbuffer: %s\nop states: %s\noperations: %s\nk: %i"%(' '.join(bis),' '.join(buf),' '.join(qs),' '.join(ops),k)
 
 
 
@@ -263,7 +268,7 @@ def clean_parses(parses):
     return parses
 
 
-def parse(s,bigrams,verbose=False):
+def parse(s,bigrams,op_fsa,verbose=False):
     """
     Parses a string
     Uses an agenda and a list of complete parses.
@@ -284,62 +289,73 @@ def parse(s,bigrams,verbose=False):
 
     #s = s.split(' ') # make the string into a list
     #s=['[']+s+[']']
-    n=len(s)#-1
+    n=len(s)
     #possible = n>0 and s[0]=='['
     #if possible: # only sentence with at least [ and ] are going to be grammatical
-    agenda = [ (['['],[],[],False,[0,1]) ]  # initialise the agenda
+    agenda = [ (['['],[],(['S'],[]),1) ]  # initialise the agenda (bis,buffer,route,counter), route = (Q,E) : states and emissions from ops FSA
     #else:
     #    return (False,[])
-    parses = [] # this will be our output
+    parses = [] # this will be our output: finished parses
     while len(agenda)>0: # keep parsing as long as we have incomplete parses
         # try to extend all partial parses in all possible ways
         if verbose: print ("\nAgenda to copy and clear: %i"%len(agenda))
-        for parse in agenda:            
-            if verbose: print("\nparse to copy/clear: %s"%parse2string(parse))
-            (bis,buf,ops,cleared,indices)=parse
-            if verbose: print (parse)
-            i=indices[-1]
-            if i==n: # move a complete parse over to the output
-                agenda.remove(parse)
+        parse = agenda[0]
+        #for parse in agenda:            
+        if verbose: print("\nparse to copy/clear: %s"%parse2string(parse))
+        (bis,buf,(qs,ops),k)=parse
+        if verbose: print (parse)
+        
+        if k==n: # move a complete parse over to the output
+            agenda.remove(parse)  # might not be necessary if we remove the task from the agenda anyway
+            if 'F' in op_fsa[qs[-1]]: # if you can get to F from here
                 new_bis=bis[:]
                 #new_bis.append(']')
                 new_buf=buf[:]
+                new_qs=qs[:]
+                new_qs.append('F')
                 new_ops=ops[:]
                 new_ops.append('end')
-                new_indices=indices[:]
-                final_parse = (new_bis,new_buf,new_ops,cleared,new_indices)
+                final_parse = (new_bis,new_buf,(new_qs,new_ops),k)
                 parses.append(final_parse)
 
-            else:
-                if len(buf)>0: # if buffer not empty
-                    ## try clearing the buffer
-                    if verbose: print ("\n Clear")
-                    if not cleared:  #i if last special op not clear
-                        # this is to make copies of the lists inside the list
-                        new_bis=bis[:]
-                        new_ops=ops[:]
-                        new_ops.append('clear') # copy the list of operations
-                        new_indices=indices[:]
-                        new_parse=(new_bis,[],new_ops,True,new_indices)
-                        if verbose: print ("new parse: %s"%parse2string(new_parse))
-                        agenda.append(new_parse) # add this new parse to the agenda
+        else:
+            if len(buf)>0: # if buffer not empty
+                ## try clearing the buffer
+                if verbose: print ("\n Clear")
+                if 'NotCL' in op_fsa[qs[-1]]:
+                    # this is to make copies of the lists inside the list
+                    new_bis=bis[:]
+                    new_qs=qs[:]
+                    new_qs.append('CLEAR_S') # copy the list of operations
+                    new_ops=ops[:]
+                    new_ops.append('clear') # copy the list of operations
+                    new_parse=(new_bis,[],(new_qs,new_ops),k)
+                    if verbose: print ("new parse: %s"%parse2string(new_parse))
+                    agenda.append(new_parse) # add this new parse to the agenda
 
-                    #Try to Copy
-                    if verbose: print ("\n Copy")
-                    if verbose: print ("buffer ",buf)
-                    copy_end = i+len(buf)
-                    if verbose: print ("copy? ", s[i : copy_end])
-                    # if the buffer is the same as the next part of the sentence
-                    if i+len(buf) <= n and parse[1]==s[i : copy_end]: 
-                        new_bis=bis[:]
-                        new_ops=ops[:]
-                        new_ops.append('copy') # copy the list of operations and add copy
-                        new_buf=buf[:]+buf[:] #add copy to buffer
-                        new_is=indices[:]
-                        new_is.append(copy_end)
-                        new_parse=(new_bis,new_buf,new_ops,False,new_is)
-                        if verbose: print ("new parse : %s"%parse2string(new_parse))
-                        agenda.append(new_parse) # add the new parse to the agenda
+                #Try to Copy
+                if verbose: print ("\n Copy")
+                if verbose: print ("buffer ",buf)
+                copy_end = k+len(buf)
+                if verbose: print ("copy? ", s[k : copy_end])
+                # if the buffer is the same as the next part of the sentence
+                next_state=None # see if we can have a copy transition
+                for out in op_fsa[qs[-1]]:
+                    print (out)
+                    if 'copy' in op_fsa[qs[-1]][out]:
+                        next_state=out
+                        break
+                print (next_state)
+                if next_state!=None and k+len(buf) <= n and parse[1]==s[k : copy_end]: 
+                    new_bis=bis[:]
+                    new_qs=qs[:]
+                    new_qs.append(next_state) # copy the list of op state and add next state
+                    new_ops=ops[:]
+                    new_ops.append('copy') # copy the list of operations and add copy
+                    new_buf=buf[:]+buf[:] #add copy to buffer
+                    new_parse=(new_bis,new_buf,(new_qs,new_ops),copy_end)
+                    if verbose: print ("new parse : %s"%parse2string(new_parse))
+                    agenda.append(new_parse) # add the new parse to the agenda
 
         if verbose: print ("\nAgenda to merge: %i"%len(agenda))
         if verbose: 
@@ -347,32 +363,49 @@ def parse(s,bigrams,verbose=False):
                 print(parse2string(parse))
         for parse in agenda:            
             if verbose: print("\nparse to merge: %s"%parse2string(parse))
-            (bis,buf,ops,cleared,indices)=parse
+            (bis,buf,(qs,ops),k)=parse
             if verbose: print (parse)
-            i=indices[-1]
-            if i==n: # move a complete parse over to the output
+            if k==n: # move a complete parse over to the output
                 agenda.remove(parse)
-                new_bis=bis[:]
-                #new_bis.append(']')
-                new_buf=buf[:]
-                new_ops=ops[:]
-                new_ops.append('end')
-                new_indices=indices[:]
-                final_parse = (new_bis,new_buf,new_ops,cleared,new_indices)
-                parses.append(final_parse)
+                if 'F' in op_fsa[qs[-1]]:
+                    new_bis=bis[:]
+                    #new_bis.append(']')
+                    new_buf=buf[:]
+                    new_qs=qs[:]
+                    new_qs.append('F')
+                    new_ops=ops[:]
+                    new_ops.append('end')
+                    final_parse = (new_bis,new_buf,(new_qs,new_ops),k+1)
+                    parses.append(final_parse)
             else:
        
                 # Try to Merge
                 if verbose: 
                     print ("\n Merge")
-                    print (s[i])
-                    print(s[i-1])
-                if s[i] in bigrams[s[i-1]]:
-                    bis.append(s[i]) #string
-                    buf.append(s[i]) #buffer
-                    ops.append('mg') #list of ops
-                    indices.append(i+1) # advance by 1
-                    if verbose: print ("merged parse: %s"%parse2string(parse))
+                    print (s[k])
+                    print(s[k-1])
+
+                next_state=None # see if we can have a copy transition
+                for out in op_fsa[qs[-1]]:
+                    if 'mg' in op_fsa[qs[-1]][out]:
+                        next_state=out
+                        break
+                            
+                print (next_state)
+                if s[k] in bigrams[s[k-1]] and next_state!=None:
+                    new_bis=bis[:]
+                    new_bis.append(s[k]) #string
+                    new_buf=buf[:]
+                    new_buf.append(s[k]) #buffer
+                    new_qs=qs[:]
+                    new_qs.append(next_state)
+                    new_ops=ops[:]
+                    new_ops.append('mg') #list of ops
+                    new_parse=(new_bis,new_buf,(new_qs,new_ops),k+1)
+                    agenda.remove(parse) # take out the old version
+                    agenda.append(new_parse) # replace it with the new version
+                    
+                    if verbose: print ("merged parse: %s"%parse2string(new_parse))
                 else:
                     return (False,parses) # if this isn't a legal transition, this sentence is not grammatical
 

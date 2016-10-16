@@ -1,6 +1,8 @@
 *.pyc
 *~
 
+.ipynb_checkpoints
+
 parse_*.pdf
 parse_*.png
 
