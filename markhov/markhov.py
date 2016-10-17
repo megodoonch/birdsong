@@ -86,6 +86,90 @@ def parse2string(parse):
     (bis,buf,(qs,ops),k)=parse
     return "\nbigrams: %s\nbuffer: %s\nop states: %s\noperations: %s\nk: %i"%(' '.join(bis),' '.join(buf),' '.join(qs),' '.join(ops),k)
 
+def parse2tree(parse):
+    (bis,buf,(p_qs,p_ops),k)=parse
+    qs,ops=p_qs[:],p_ops[:]
+    qs.reverse() # work from the bottom up
+    ops.reverse()
+    qs=qs[1:] # we don't want F: this just means end is a terminal
+    t=(qs[0],[ops[0]]) # base case
+    i=1
+    for (q,op) in zip(qs[1:],ops[1:]):
+        if op=='mg':
+            left = "mg\n%s"%bis[i]
+            i+=1
+        else:
+            left=op
+        t=(q,[left,t])
+    return t
+
+
+def parse2dot(parse):
+    """
+    makes a dot-readable string of nodes and edges
+
+    Arguments
+    parse : a parse of the string of the form (bigrams,_,(states visited, operations used),_)
+
+    Returns
+    nodes and edges where nodes are pairs of unique names and labels, and edges are pairs of nodes
+    """
+    (bis,buf,(qs,ops),k)=parse
+    nodes=[]
+    edges=[]
+    n=0 # for naming nodes uniquely
+    i=1 # for moving through the bigrams
+    for q,op in zip(qs[:-2],ops[:-1]):
+        nodes.append((n,q)) # mother node
+        if op=='mg': # if it's merge, let's get the word too
+            left = "mg\n%s"%bis[i]
+            i+=1
+        else:
+            left=op
+        nodes.append((n+1,left)) # left daughter is lexical
+        edges.append((n,n+1)) # edge to left daughter
+        edges.append((n,n+2)) # edge to right daughter
+        n+=2 # right daughter is the new mother node
+
+    nodes.append((n,qs[-2])) # the last constituent is unary-branching
+    nodes.append((n+1,ops[-1]))
+    edges.append((n,n+1))
+
+    return nodes,edges
+
+
+
+def dot_output(parse):
+    # Make a little dot output for the particular tree
+    nodes,edges = parse2dot(parse)
+
+    outp = ""
+
+    outp += "digraph tree {\n node [shape = none; height=0; width=0];\n edge [dir=none];"
+    
+    for (nodename,nodelabel) in nodes:
+        outp += "\t%s [label=\"%s\"]\n"%(nodename,nodelabel)
+
+    for (from_node,to_node) in edges:
+        outp += "\t%s -> %s\n"%(from_node,to_node)
+
+    outp+="}\n"
+    return outp
+
+
+def parse2pic(parse,fname,ftype):
+    # Makes a dot graph and outputs to pdf
+    outp = dot_output(parse)
+    f = open('.tmp.dot','w')
+    f.write(outp)
+    f.close()
+    import subprocess
+    subprocess.call(['dot','.tmp.dot','-T%s'%ftype,'-o',"%s.%s"%(fname,ftype)])
+    # subprocess.call(['rm','.tmp.dot']) # clean up my mess
+    
+    return
+
+
 
 
 ##### choosing the move #######
@@ -260,156 +344,176 @@ def gen_corpus_ends(bigrams,ops,n):
 ######### PARSE ###########
 
 
-#TODO
-def clean_parses(parses):
-    """removes ones with clear at the end
-    call this at the end of parse
+def check_edge(e,q,fsm):
     """
-    return parses
+    checks whether the current state q has an out-edge e. If so returns the state it goes to and the probability; otherwise returns None
+    
+    Arguments
+    e   : we're checking to see if there's an edge with this label
+    q   : the current state
+    fsm : the fsm
+
+    Returns 
+    (q2,p): the destination and probability of the edge
+
+    """
+    possible_states=fsm[q]
+    for s in possible_states:
+        #print (s)
+        if e in possible_states[s]:
+            return (s,possible_states[s][e])
+    
+
+def possible_transitions(q,fsm):
+    ts=[]
+    possible_states=fsm[q]
+    for s in possible_states:
+        #print (s)
+        for e in possible_states[s]:
+            ts.append((s,e))
+    return ts
 
 
-def parse(s,bigrams,op_fsa,verbose=False):
+
+def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
+    """ 
+    Applies transition t in the given state,
+    if this is actually possible given the string
+    and buffer and bigram chain; if so, returns a copy of the state
+    with the transition applied and the pointer 
+    in the string advanced to the new location
+    Also checks whether we just completed a parse.
+    If this transition is not possible, return None.
+
+    Arguments
+    state   : aka an agenda task of the form (bigrams used,buffer,(states visited,operations used),index for where we are in the sentence)
+    t       : transition (new state, operation)
+    fsm     : the operations FSA
+    bigrams : the bigram Markhov chain
+    s : sentence
+    verbose : for debugging
+
+    Returns
+    (new state, gram) where gram is true if this is a complete, valid parse
+    """
+    #if verbose: print ("copy and apply transition")
+    (bis,buf,(qs,ops),k)=state
+    new_bis,new_buf,new_qs,new_ops=bis[:],buf[:],qs[:],ops[:] # make a copy
+
+    (next_state,op)=t
+    n=len(s)
+    gram=False # this will be true if we end at the final state
+
+    if op=='clear':
+        if verbose: print (" Clear")
+        new_buf=[] # clear the buffer
+
+    elif op=='copy':
+        if verbose: print (" Copy")
+        copy_end = k+len(buf)
+        if copy_end>n:
+            if verbose: print ("no room for a copy")
+            return  # no room for a copy here
+        if verbose: print ("buffer ",buf)
+        if verbose: print ("copy? ", s[k : copy_end])
+        if buf==s[k : copy_end]: # if this is a copy            
+            new_buf+=new_buf # copy the buffer
+            k=copy_end # move the pointer to the end of the copy
+        else: 
+            if verbose: print ("not a copy")
+            return 
+
+    elif op=='mg':
+        if verbose: 
+            print (" Merge")
+            
+        if k>n-1:
+            if verbose: print ("no room to Merge")
+            return # if we don't have room for more merging
+
+        if verbose: print (bis[-1],s[k])
+
+        if s[k] in bigrams[bis[-1]]: # if the bigram is allowed
+            new_bis.append(s[k]) # add the new bigram
+            new_buf.append(s[k])
+            k+=1 # move over one word
+        else: 
+            if verbose: print ('illegal bigram %s %s'%(s[k],bis[-1]))
+            return 
+
+    elif op=='end' and k==n:
+        if verbose: print (" End") # might want to add a ']' here?
+        gram=True # this is grammatical!
+ 
+    #if this wasn't going to work we'd've bailed out by now, 
+    #so apply the transition to the FSM record
+    new_qs.append(next_state) # add the new state
+    new_ops.append(op) # add the operation
+
+    if verbose: print ("new state: ",(new_bis,new_buf,(new_qs,new_ops),k),gram)
+    
+    return ((new_bis,new_buf,(new_qs,new_ops),k),gram)
+
+
+
+
+
+def parse(s,bigrams,fsm,start='S',verbose=False):
     """
     Parses a string
     Uses an agenda and a list of complete parses.
-    We initialise the agenda with a start state,   [['['],[],['mg'],False]
+    We initialise the agenda with a start state,  [ (['['],[],(['S'],[]),1) ]
     An agenda item is a list of 4 elements:
-    the string so far, the buffer, the operations, and whether the last "special" operation (copy or clear) is clear.
-    The last element is a little hack to reduce the amount of pointless buffer-clearing.
+    the string so far, the buffer, the route so far (states,ops), and the index we're at in the sentence, k
     We add onto an agenda item until it is a complete parse, in which case we move it to the output, parses
-    Whenever there is a choice of two valid moves, we copy the agenda item and try both
         
     Arguments
     s       : the string to be parsed -- string
     bigrams : bigram markhov chain
+    fsm     : operations FSM
+    verbose : for debugging
 
     Returns
-    ()
+    list of complete parses
     """
 
-    #s = s.split(' ') # make the string into a list
-    #s=['[']+s+[']']
-    n=len(s)
-    #possible = n>0 and s[0]=='['
-    #if possible: # only sentence with at least [ and ] are going to be grammatical
-    agenda = [ (['['],[],(['S'],[]),1) ]  # initialise the agenda (bis,buffer,route,counter), route = (Q,E) : states and emissions from ops FSA
-    #else:
-    #    return (False,[])
-    parses = [] # this will be our output: finished parses
-    while len(agenda)>0: # keep parsing as long as we have incomplete parses
-        # try to extend all partial parses in all possible ways
-        if verbose: print ("\nAgenda to copy and clear: %i"%len(agenda))
-        parse = agenda[0]
-        #for parse in agenda:            
-        if verbose: print("\nparse to copy/clear: %s"%parse2string(parse))
-        (bis,buf,(qs,ops),k)=parse
-        if verbose: print (parse)
-        
-        if k==n: # move a complete parse over to the output
-            agenda.remove(parse)  # might not be necessary if we remove the task from the agenda anyway
-            if 'F' in op_fsa[qs[-1]]: # if you can get to F from here
-                new_bis=bis[:]
-                #new_bis.append(']')
-                new_buf=buf[:]
-                new_qs=qs[:]
-                new_qs.append('F')
-                new_ops=ops[:]
-                new_ops.append('end')
-                final_parse = (new_bis,new_buf,(new_qs,new_ops),k)
-                parses.append(final_parse)
+    agenda = [ (['['],[],([start],[]),1) ] # initialise with both start categories
 
-        else:
-            if len(buf)>0: # if buffer not empty
-                ## try clearing the buffer
-                if verbose: print ("\n Clear")
-                if 'NotCL' in op_fsa[qs[-1]]:
-                    # this is to make copies of the lists inside the list
-                    new_bis=bis[:]
-                    new_qs=qs[:]
-                    new_qs.append('CLEAR_S') # copy the list of operations
-                    new_ops=ops[:]
-                    new_ops.append('clear') # copy the list of operations
-                    new_parse=(new_bis,[],(new_qs,new_ops),k)
-                    if verbose: print ("new parse: %s"%parse2string(new_parse))
-                    agenda.append(new_parse) # add this new parse to the agenda
+    complete = [] # for the complete parses
 
-                #Try to Copy
-                if verbose: print ("\n Copy")
-                if verbose: print ("buffer ",buf)
-                copy_end = k+len(buf)
-                if verbose: print ("copy? ", s[k : copy_end])
-                # if the buffer is the same as the next part of the sentence
-                next_state=None # see if we can have a copy transition
-                for out in op_fsa[qs[-1]]:
-                    print (out)
-                    if 'copy' in op_fsa[qs[-1]][out]:
-                        next_state=out
-                        break
-                print (next_state)
-                if next_state!=None and k+len(buf) <= n and parse[1]==s[k : copy_end]: 
-                    new_bis=bis[:]
-                    new_qs=qs[:]
-                    new_qs.append(next_state) # copy the list of op state and add next state
-                    new_ops=ops[:]
-                    new_ops.append('copy') # copy the list of operations and add copy
-                    new_buf=buf[:]+buf[:] #add copy to buffer
-                    new_parse=(new_bis,new_buf,(new_qs,new_ops),copy_end)
-                    if verbose: print ("new parse : %s"%parse2string(new_parse))
-                    agenda.append(new_parse) # add the new parse to the agenda
+    tries=0
+    
+    while len(agenda)>0:
+        task = agenda[0] # take the first agenda item
+        (bis,buf,(qs,ops),k)=task # extract the current task
+        if verbose: print ("\nprefix: %s"%(' '.join(s[:k])))
 
-        if verbose: print ("\nAgenda to merge: %i"%len(agenda))
-        if verbose: 
-            for parse in agenda:
-                print(parse2string(parse))
-        for parse in agenda:            
-            if verbose: print("\nparse to merge: %s"%parse2string(parse))
-            (bis,buf,(qs,ops),k)=parse
-            if verbose: print (parse)
-            if k==n: # move a complete parse over to the output
-                agenda.remove(parse)
-                if 'F' in op_fsa[qs[-1]]:
-                    new_bis=bis[:]
-                    #new_bis.append(']')
-                    new_buf=buf[:]
-                    new_qs=qs[:]
-                    new_qs.append('F')
-                    new_ops=ops[:]
-                    new_ops.append('end')
-                    final_parse = (new_bis,new_buf,(new_qs,new_ops),k+1)
-                    parses.append(final_parse)
-            else:
-       
-                # Try to Merge
-                if verbose: 
-                    print ("\n Merge")
-                    print (s[k])
-                    print(s[k-1])
+        for t in possible_transitions(qs[-1],fsm): # loop through possible transitions in FSA
+            if verbose: print ("\ntransition: ",t)
+            tries+=1
+            result = copy_and_apply_transition(task,t,fsm,bigrams,s,verbose) # try to apply each one
+            if result!=None: # every time we fail to apply a transition, result=None
+                (newtask,gram)=result
+                if gram: # if it's a complete grammatical sentence
+                    if verbose: print ("done this task")
+                    complete.append(newtask) # add it to the complete ones
+                else: # otherwise, add the new task (task with t applied) back to the agenda
+                    agenda.append(newtask) 
 
-                next_state=None # see if we can have a copy transition
-                for out in op_fsa[qs[-1]]:
-                    if 'mg' in op_fsa[qs[-1]][out]:
-                        next_state=out
-                        break
-                            
-                print (next_state)
-                if s[k] in bigrams[s[k-1]] and next_state!=None:
-                    new_bis=bis[:]
-                    new_bis.append(s[k]) #string
-                    new_buf=buf[:]
-                    new_buf.append(s[k]) #buffer
-                    new_qs=qs[:]
-                    new_qs.append(next_state)
-                    new_ops=ops[:]
-                    new_ops.append('mg') #list of ops
-                    new_parse=(new_bis,new_buf,(new_qs,new_ops),k+1)
-                    agenda.remove(parse) # take out the old version
-                    agenda.append(new_parse) # replace it with the new version
-                    
-                    if verbose: print ("merged parse: %s"%parse2string(new_parse))
-                else:
-                    return (False,parses) # if this isn't a legal transition, this sentence is not grammatical
+        del agenda[0] # remove the task we just completed
 
-    return (True,clean_parses(parses))
+    if verbose: 
+        print ("\nParses")
+        for p in complete:
+            print (parse2string(p))
+        print ("\nAttempts to transition: %i"%tries)
+        print ("Number of parses: %i"%len(complete))
+    return complete
+
+
+
+
+
 
 
 
@@ -512,3 +616,25 @@ def prob_string(s,bigrams,ops,verbose=False):
         p = log_add(p,new_p)
     print ("total prob: %.5f"%p)
     return p
+
+
+### WRAPPERS #####
+
+
+def string2pics(s,bigrams,fsm,file_type,start='S'):
+    """
+    prints to file trees of the parses of the string
+
+    Arguments
+    s         : sentence in list form
+    bigrams   : bigram markhov chain
+    fsm       : operation fsm
+    file_type : string: 'pdf' or 'png' for type of file you want graphviz to make
+    start     : start category
+    """
+
+    parses=parse(s,bigrams,fsm,start)
+    for i,p in enumerate(parses):
+        parse2pic(p,"parse_%i"%i,file_type)
+
+    print ("Number of parses: %i"%len(parses))
