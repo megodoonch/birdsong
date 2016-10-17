@@ -103,5 +103,7 @@ copy= ('COPY',['copy'])
 
 
 
-
-
+f=open('../corpus/cath8.txt','r')
+corpus = f.readlines()
+f.close()
+corpus = [line.rstrip('\n') for line in corpus]

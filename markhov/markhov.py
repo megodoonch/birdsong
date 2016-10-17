@@ -83,11 +83,11 @@ bi_ops=ops_log(bi_ops)
 ##### PRINT #####
 
 def parse2string(parse):
-    (bis,buf,(qs,ops),k)=parse
-    return "\nbigrams: %s\nbuffer: %s\nop states: %s\noperations: %s\nk: %i"%(' '.join(bis),' '.join(buf),' '.join(qs),' '.join(ops),k)
+    (bis,buf,(qs,ops),k,p)=parse
+    return "\nbigrams: %s\nbuffer: %s\nop states: %s\noperations: %s\nk: %i\nprob: %.4f"%(' '.join(bis),' '.join(buf),' '.join(qs),' '.join(ops),k,p)
 
 def parse2tree(parse):
-    (bis,buf,(p_qs,p_ops),k)=parse
+    (bis,buf,(p_qs,p_ops),k,p)=parse
     qs,ops=p_qs[:],p_ops[:]
     qs.reverse() # work from the bottom up
     ops.reverse()
@@ -114,7 +114,7 @@ def parse2dot(parse):
     Returns
     nodes and edges where nodes are pairs of unique names and labels, and edges are pairs of nodes
     """
-    (bis,buf,(qs,ops),k)=parse
+    (bis,buf,(qs,ops),k,p)=parse
     nodes=[]
     edges=[]
     n=0 # for naming nodes uniquely
@@ -370,7 +370,7 @@ def possible_transitions(q,fsm):
     for s in possible_states:
         #print (s)
         for e in possible_states[s]:
-            ts.append((s,e))
+            ts.append((s,e,possible_states[s][e]))
     return ts
 
 
@@ -397,10 +397,10 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
     (new state, gram) where gram is true if this is a complete, valid parse
     """
     #if verbose: print ("copy and apply transition")
-    (bis,buf,(qs,ops),k)=state
+    (bis,buf,(qs,ops),k,p)=state
     new_bis,new_buf,new_qs,new_ops=bis[:],buf[:],qs[:],ops[:] # make a copy
 
-    (next_state,op)=t
+    (next_state,op,p_new)=t
     n=len(s)
     gram=False # this will be true if we end at the final state
 
@@ -436,6 +436,7 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
         if s[k] in bigrams[bis[-1]]: # if the bigram is allowed
             new_bis.append(s[k]) # add the new bigram
             new_buf.append(s[k])
+            p+=bigrams[bis[-1]][s[k]]
             k+=1 # move over one word
         else: 
             if verbose: print ('illegal bigram %s %s'%(s[k],bis[-1]))
@@ -450,9 +451,9 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
     new_qs.append(next_state) # add the new state
     new_ops.append(op) # add the operation
 
-    if verbose: print ("new state: ",(new_bis,new_buf,(new_qs,new_ops),k),gram)
+    if verbose: print ("new state: ",(new_bis,new_buf,(new_qs,new_ops),k,p+p_new),gram)
     
-    return ((new_bis,new_buf,(new_qs,new_ops),k),gram)
+    return ((new_bis,new_buf,(new_qs,new_ops),k,p+p_new),gram)
 
 
 
@@ -477,15 +478,17 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
     list of complete parses
     """
 
-    agenda = [ (['['],[],([start],[]),1) ] # initialise with both start categories
+    agenda = [ (['['],[],([start],[]),0,0.) ] # initialise with both start categories
 
     complete = [] # for the complete parses
 
     tries=0
+
+    s=s.split(' ')
     
     while len(agenda)>0:
         task = agenda[0] # take the first agenda item
-        (bis,buf,(qs,ops),k)=task # extract the current task
+        (bis,buf,(qs,ops),k,p)=task # extract the current task
         if verbose: print ("\nprefix: %s"%(' '.join(s[:k])))
 
         for t in possible_transitions(qs[-1],fsm): # loop through possible transitions in FSA
@@ -581,41 +584,6 @@ def check_ops(op_list,ops,verbose=False):
     return (valid and state=='F',p) # it's valid if we didn't run into a problem and we end in a final state
 
 
-def prob_parse(parse,bigrams,ops):
-    """
-    Finds the probability of a single parse given both machines
-
-    Arguments:
-    parse   : (bigram string, buffer, operations used, last special op was Clear, list of indices we considered)
-    bigrams : Markhov chain of alphabet (dict)
-    ops     : PFSM of operations (dict)
-    """
-    bis = parse[0]
-    op_list = parse[2]
-    #print(check_bigrams(bis,bigrams))
-    #print(check_ops(op_list,ops))
-    return check_bigrams(bis,bigrams)[1] + check_ops(op_list,ops)[1] # multiply probs
-
-
-def prob_string(s,bigrams,ops,verbose=False):
-    """
-    finds the total probability of a string given the operations and bigrams
-
-    s      : sentence (string list)
-    bigrams: markhov chain of alphabet members (dict)
-    ops    : PFSM of operations (dict)
-    """
-    parses=parse(s,bigrams)
-    p=log0
-    if not parses[0]:
-        print ("not a valid sentence")
-        return log0
-    for i,par in enumerate(parses[1]):
-        new_p=prob_parse(par,bigrams,ops)
-        if verbose: print("parse %i: %.5f"%(i,new_p))
-        p = log_add(p,new_p)
-    print ("total prob: %.5f"%p)
-    return p
 
 
 ### WRAPPERS #####
@@ -632,9 +600,13 @@ def string2pics(s,bigrams,fsm,file_type,start='S'):
     file_type : string: 'pdf' or 'png' for type of file you want graphviz to make
     start     : start category
     """
-
+    prob=log0
     parses=parse(s,bigrams,fsm,start)
     for i,p in enumerate(parses):
         parse2pic(p,"parse_%i"%i,file_type)
+        print ("prob of parse %i: %.4f"%(i,p[-1]))
+        prob=log_add(prob,p[-1])
+
 
     print ("Number of parses: %i"%len(parses))
+    print ("Prob of sentence: %.5f"%prob)
