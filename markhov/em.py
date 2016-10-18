@@ -6,6 +6,7 @@ expectation maximisation algorithm for two-part grammar
 
 import numpy as np
 import random
+import copy
 
 import markhov
 import fsa
@@ -83,3 +84,29 @@ def update_t_first(t,corpus,bigrams,fsa,start='S',end='F'):
 
 
        
+def update_fsa_first(corpus,bigrams,fsa,start='S',end='F'):
+    """
+    updates the operations fsa on the first iteration
+
+    """
+    new_fsa = copy.deepcopy(fsa)
+    sents = []
+    for s in corpus:
+        parses = parse(s,bigrams,fsa,start) # parse the sentence
+        parses = clean_parses(parses) # just keep (bis,route,p)
+        p_s = p_sent(parses,bigrams,fsa,start,end) # get the sent prob
+        sents.append((s,parses,p_s))
+    for lhs in fsa:
+        for rhs in fsa[lhs]:
+            for e in fsa[lhs][rhs]:
+                tot_tc = log0
+                tot_sc = log0
+                
+                for (s,parses,p_s) in sents:
+                    for (bis,route,p) in parses:
+                        # add in p(parse | sent) * TC 
+                        tot_tc = log_add(tot_tc, p-p_s+log(transition_count(route,(lhs,e,rhs))))
+                        # add in p(parse | sent) * SC
+                        tot_sc = log_add(tot_sc, p-p_s+log(state_count(route,lhs)))
+            new_fsa[lhs][rhs][e]=tot_tc-tot_sc
+    return new_fsa
