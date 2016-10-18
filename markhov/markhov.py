@@ -13,6 +13,12 @@ import random
 log0=float('-inf')
 
 
+def log(f):
+    if f==0:
+        return log0
+    else: return np.log(f)
+
+        
 def log_add(logx,logy):
     """This adds two log-transformed variables,
     taking care of the underflow that you usually find when you do this
@@ -368,7 +374,7 @@ def possible_transitions(q,fsm):
     ts=[]
     possible_states=fsm[q]
     for s in possible_states:
-        #print (s)
+        #print (possible_states[s])
         for e in possible_states[s]:
             ts.append((s,e,possible_states[s][e]))
     return ts
@@ -525,7 +531,6 @@ def probability_bigrams(s,bigrams):
     """
     Calculates the probability of the sentence based just on the bigrams
     """
-    s=s.split(' ')
     p=0.
     for i in range(1,len(s)):
         p+=bigrams[s[i-1]][s[i]]
@@ -584,6 +589,84 @@ def check_ops(op_list,ops,verbose=False):
     return (valid and state=='F',p) # it's valid if we didn't run into a problem and we end in a final state
 
 
+def p_route(route,fsa,start='S',end='F'):
+    """
+    Checks the validity of a sequence of operations. 
+    Returns probability of that sequence
+
+    Arguments:
+    route   : (qs,es) where qs are a sequence of states of the FSA
+              and es are sequence of operations chosen from mg,copy,clear,end    
+    fsa     : PFSA of operations implemented as dict
+    verbose : for debugging
+    """
+    (qs,es) = route
+    if qs[0] != start or qs[-1] != end:
+        return -inf
+    p=0. # initialise total (log) prob
+    for i in range(1,len(qs)):
+        p+=fsa[qs[i-1]][qs[i]][es[i-1]]
+
+    return p
+
+
+def clean_parse(parse):
+    (bis,_,route,__,p)=parse
+    return (bis,route,p)
+
+def clean_parses(parses):
+    clean = []
+    for parse in parses:
+        clean.append(clean_parse(parse))
+    return clean
+
+
+def p_parse(parse,bigrams,fsa,start='S',end='F'):
+    """returns the probability of one parse of one sentence
+
+    Arguments
+    parse   : (bigrams,route,old prob)
+    bigrams : markhov chain
+    fsa     : operations fsa
+    start   : start category
+    end     : final state
+
+    Returns
+    probability of parse (float)
+    """
+    (bis,route,_)=parse
+    return p_route(route,fsa,start,end)+probability_bigrams(bis,bigrams)
+
+
+def change_p_parse(parse,bigrams,fsa,start='S',end='F'):
+    """
+    calculate new probability of parse and add it back into the parse
+    """
+    (bis,route,_)=parse
+    return(bis,route,p_parse(parse,bigrams,fsa,start,end))
+
+    
+
+def p_sent(parses,bigrams,fsa,start='S',end='F'):
+    """returns the probability of all parses of one sentence
+
+    Arguments
+    parses   : list of (bigrams,route,old prob)
+    bigrams  : markhov chain
+    fsa      : operations fsa
+    start    : start category
+    end      : final state
+
+    Returns
+    probability of sentence (float)
+    """
+
+    p=log0 # initialise total
+    for parse in parses:
+        p=log_add(p,p_parse(parse,bigrams,fsa,start,end)) # parses are "or"s so we log-sum
+
+    return p
+
 
 
 ### WRAPPERS #####
@@ -603,15 +686,16 @@ def string2print(s,bigrams,fsm,start='S'):
     for i,p in enumerate(parses):
         print ("\nprob of parse %i: %.4f"%(i,p[-1]))
         print ("Bigrams: %s"%(' '.join(p[0])))
-        print ("Operations: %s"%(' '.join(p[2][1])))
-        print ("Operation states: %s"%(' '.join(p[2][0])))
+        print ("Operations: %s"%(' '.join(p[1][1])))
+        print ("Operation states: %s"%(' '.join(p[1][0])))
 
                 #print (parse2tree(p))
         prob=log_add(prob,p[-1])
 
 
-    print ("Number of parses: %i"%len(parses))
+    print ("\nNumber of parses: %i"%len(parses))
     print ("Prob of sentence: %.5f"%prob)
+    return parses
 
     
 
