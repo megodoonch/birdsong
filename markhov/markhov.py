@@ -43,40 +43,40 @@ def log_add(logx,logy):
 
 #### OPERATIONS PFSAs #######
 
-def ops_log(ops):
-    for a in ops:
-        for b in ops[a]:
-            for w in ops[a][b]:
-                ops[a][b][w]=np.log(ops[a][b][w])
-    return ops
+# def ops_log(ops):
+#     for a in ops:
+#         for b in ops[a]:
+#             for w in ops[a][b]:
+#                 ops[a][b][w]=np.log(ops[a][b][w])
+#     return ops
 
 
 
-ops = {'S':{'NotCL':{'mg':1.}}, # from start we have to merge
-       'NotCL':{'NotCL':{'mg':0.25,'copy':0.25}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
-                'CLEAR_S':{'clear':0.25}, # go here to clear the buffer
-               'F':{'end':0.25} # go here to end
-           },
-       'CLEAR_S':{'CLEAR':{'mg':1.}}, # this is where we've just cleared. Buffer is empty so you can only Merge
-       'CLEAR':{'CLEAR':{'mg':0.5}, # the last special op was Clear so we can Copy or Merge.
-                'NotCL':{'copy':0.5} # if we Copy, the last special op was Copy so go to COPY
-            },
-       'F':{} #final state
-   }
+# ops = {'S':{'NotCL':{'mg':1.}}, # from start we have to merge
+#        'NotCL':{'NotCL':{'mg':0.25,'copy':0.25}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
+#                 'CLEAR_S':{'clear':0.25}, # go here to clear the buffer
+#                'F':{'end':0.25} # go here to end
+#            },
+#        'CLEAR_S':{'CLEAR':{'mg':1.}}, # this is where we've just cleared. Buffer is empty so you can only Merge
+#        'CLEAR':{'CLEAR':{'mg':0.5}, # the last special op was Clear so we can Copy or Merge.
+#                 'NotCL':{'copy':0.5} # if we Copy, the last special op was Copy so go to COPY
+#             },
+#        'F':{} #final state
+#    }
 
 
 
 
 
-ops=ops_log(ops)
+# ops=ops_log(ops)
 
-bi_ops = {'S':{'S':{'mg':0.5},
-               'F':{'end':0.5}
-           },
-          'F':{}
-      }
+# bi_ops = {'S':{'S':{'mg':0.5},
+#                'F':{'end':0.5}
+#            },
+#           'F':{}
+#       }
 
-bi_ops=ops_log(bi_ops)
+# bi_ops=ops_log(bi_ops)
 
 
 
@@ -588,6 +588,33 @@ def check_ops(op_list,ops,verbose=False):
 
 ### WRAPPERS #####
 
+def string2print(s,bigrams,fsm,start='S'):
+    """
+    prints to terminal trees of the parses of the string
+
+    Arguments
+    s         : sentence in list form
+    bigrams   : bigram markhov chain
+    fsm       : operation fsm
+    start     : start category
+    """
+    prob=log0
+    parses=parse(s,bigrams,fsm,start)
+    for i,p in enumerate(parses):
+        print ("\nprob of parse %i: %.4f"%(i,p[-1]))
+        print ("Bigrams: %s"%(' '.join(p[0])))
+        print ("Operations: %s"%(' '.join(p[2][1])))
+        print ("Operation states: %s"%(' '.join(p[2][0])))
+
+                #print (parse2tree(p))
+        prob=log_add(prob,p[-1])
+
+
+    print ("Number of parses: %i"%len(parses))
+    print ("Prob of sentence: %.5f"%prob)
+
+    
+
 
 def string2pics(s,bigrams,fsm,file_type,start='S'):
     """
@@ -610,3 +637,14 @@ def string2pics(s,bigrams,fsm,file_type,start='S'):
 
     print ("Number of parses: %i"%len(parses))
     print ("Prob of sentence: %.5f"%prob)
+
+
+###### CALCUATING THINGS ABOUT THE CORPUS #########
+
+def ambiguity(corpus,bigrams,fsm,start='S'):
+    total=0
+    for s in corpus:
+        parses=parse(s,bigrams,fsm,start)
+        total+=len(parses)
+
+    print ("%i parses for %i sentences = %.3f parses per sentence"%(total,len(corpus),float(total)/len(corpus)))
