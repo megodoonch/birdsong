@@ -18,6 +18,7 @@ from markhov import log0, log_add, log, log_sum
 
 ops=fsa.ops
 bigrams=bigrams.bigrams
+bi_ops=fsa.bi_ops
 
 f=open('../corpus/cath8.txt','r')
 corpus = f.readlines()
@@ -69,14 +70,14 @@ def uni_count(word,bis):
 
     Arguments
     word : alphabet member
-    bis  : sequence of alphabet members 
+    bis  : sequence of alphabet members. We don't count the last one because we never left it
 
     Returns
     int
 
     """
 
-    return len([w for w in bis if w==word] )
+    return len([w for w in bis[:-1] if w==word] )
 
 def bi_counts(bis):
     """
@@ -103,14 +104,14 @@ def uni_counts(bis):
     gets the number of occurances of all words in sequence
 
     Arguments
-    bis : sequence of alphabet members 
+    bis : sequence of alphabet members. We don't count the last one because we never left it
 
     Returns
     dict of wd:count
 
     """
     us={}
-    for a in bis:
+    for a in bis[:-1]:
         if a not in us: # only calculate this once
             uc = uni_count(a,bis)
             us[a]=uc
@@ -236,23 +237,23 @@ def parse_corpus(corpus,bigrams,fsa,start='S',end='F'):
     return sents
 
 
-def add_counts(tot,p,tcounts,scounts,tr):#,p_s):
-    """
-    add counts times prob parse
+# def add_counts(tot,p,tcounts,scounts,tr):#,p_s):
+#     """
+#     add counts times prob parse
 
-    Arguments
-    tot     : the running total we're adding to
-    p       : prob of parse
-    tcounts : transition counts
-    scounts : state counts
-    tr     : the transition. Note the first element is the state, whether it's (q1,e,q2) or (a,b)
+#     Arguments
+#     tot     : the running total we're adding to
+#     p       : prob of parse
+#     tcounts : transition counts
+#     scounts : state counts
+#     tr     : the transition. Note the first element is the state, whether it's (q1,e,q2) or (a,b)
     
-    Returns
-    the new running total (float)
-    """
-    #print ("%.2f + %.2f x %.2f / %.2f=%.2f"%(np.exp(tot), np.exp(p),tcounts[tr],scounts[tr[0]],np.exp(log_add(tot, p+log(tcounts[tr])-log(scounts[tr[0]])))))
+#     Returns
+#     the new running total (float)
+#     """
+#     print ("%.2f + %.2f x %.2f / %.2f=%.2f"%(np.exp(tot), np.exp(p),tcounts[tr],scounts[tr[0]],np.exp(log_add(tot, p+log(tcounts[tr])-log(scounts[tr[0]])))))
 
-    return log_add(tot, p+log(tcounts[tr])-log(scounts[tr[0]]))
+#     return log_add(tot, p+log(tcounts[tr])-log(scounts[tr[0]]))
      
 
   
@@ -398,7 +399,77 @@ def sum_p_corpus(parsed_corpus):
 
 
 
-def update_automata(corpus,bigrams,fsa):
+# def update_automata(corpus,bigrams,fsa):
+#     """
+#     updates the bigram chain and operations fsa
+    
+#     Arguments
+#     corpus : a parsed corpus of triples (s,parses,prob)
+#               where parses is a list of
+#               (bis,route,prob,state counts, trans counts,
+#               bigram counts, unigram counts)
+#     bigrams : bigram morkhov chain (dict)
+#     fsa     : operations FSA (dict)
+
+#     returns
+#     updated bigrams, updated fsa
+
+#     """
+#     p_c=sum_p_corpus(corpus)
+#     #print ("prob corp = %f"%np.exp(p_c))
+#     new_fsa = copy.deepcopy(fsa) #copy the ops FSA
+#     for lhs in new_fsa: # go through the FSA
+#         print (lhs)
+#         for rhs in new_fsa[lhs]:
+#             #print (rhs)
+#             for e in new_fsa[lhs][rhs]:
+#                 #print (e)
+#                 new_prob=log0
+#                 #print (lhs,e,rhs)
+
+#                 for (s,parses,p_s) in corpus: # go through parsed corpus
+#                     #print (s)
+#                     # add up all the TCs/SCs for the parses of this sentence
+#                     #new_p_this_s=log0
+#                     for (bis,route,p,sc,tc,bc,uc) in parses:
+#                         #print (tc)
+#                         #print (sc)
+#                         if (lhs,e,rhs) in tc: # if this parse has this rule
+#                             # add in this count ratio, times p(parse)
+#                             new_prob = add_counts(new_prob,p,tc,sc,(lhs,e,rhs))#,p_s)
+#                             #new_p_this_s = add_counts(new_p_this_s,p,tc,sc,(lhs,e,rhs))
+#                     # when you've got all the parses for this sentence processed, 
+#                     #divide by the prob of the sentence 
+#                     #and add the result into the new prob for the rule
+#                     #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
+#                     #print (lhs,e,rhs,new_prob)
+#             # when you're through the corpus, update prob for this rule
+#             print ("new prob for %s %s %s: %f - %f = %f"%(lhs,e,rhs,new_prob,p_c,new_prob-p_c))
+#             if np.isnan(new_prob): print ("uh oh!", lhs,e,rhs)
+#             new_fsa[lhs][rhs][e]= (new_prob - p_c)
+#             #print (new_fsa[lhs][rhs][e])
+#     #print (new_fsa)
+
+#     new_bis = copy.deepcopy(bigrams) # copy bigrams
+#     for a in bigrams: #go through the chain
+#         for b in bigrams[a]:
+#             new_prob=log0
+#             #print (a,b)
+
+#             for (s,parses,p_s) in corpus: # go through the corpus
+#                 #new_p_this_s=log0
+#                 for (bis,route,p,sc,tc,bc,uc) in parses:
+#                     if (a,b) in bc: # look for bigram in counts
+#                         # add in this count ratio, times p(parse)
+#                         new_prob = add_counts(new_prob,p,bc,uc,(a,b))#,p_s)
+#                         #new_p_this_s = add_counts(new_p_this_s,p,bc,uc,(a,b))
+#                 #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
+#             new_bis[a][b]=new_prob - p_c # new prob
+            
+#     return new_bis,new_fsa
+
+
+def update_automata(corpus,bigrams,fsa,verbose=False):
     """
     updates the bigram chain and operations fsa
     
@@ -414,18 +485,16 @@ def update_automata(corpus,bigrams,fsa):
     updated bigrams, updated fsa
 
     """
-    p_c=sum_p_corpus(corpus)
-    #print ("prob corp = %f"%np.exp(p_c))
     new_fsa = copy.deepcopy(fsa) #copy the ops FSA
     for lhs in new_fsa: # go through the FSA
-        #print (lhs)
+        if verbose: print (lhs)
         for rhs in new_fsa[lhs]:
             #print (rhs)
             for e in new_fsa[lhs][rhs]:
                 #print (e)
-                new_prob=log0
                 #print (lhs,e,rhs)
-
+                tot_tc=log0
+                tot_sc=log0
                 for (s,parses,p_s) in corpus: # go through parsed corpus
                     #print (s)
                     # add up all the TCs/SCs for the parses of this sentence
@@ -434,8 +503,10 @@ def update_automata(corpus,bigrams,fsa):
                         #print (tc)
                         #print (sc)
                         if (lhs,e,rhs) in tc: # if this parse has this rule
-                            # add in this count ratio, times p(parse)
-                            new_prob = add_counts(new_prob,p,tc,sc,(lhs,e,rhs))#,p_s)
+                            # add in counts, times p(parse)
+                            tot_tc=log_add(tot_tc, p + log(tc[(lhs,e,rhs)]))
+                            if lhs in sc:
+                                tot_sc=log_add(tot_sc, p + log(sc[lhs]))
                             #new_p_this_s = add_counts(new_p_this_s,p,tc,sc,(lhs,e,rhs))
                     # when you've got all the parses for this sentence processed, 
                     #divide by the prob of the sentence 
@@ -443,30 +514,45 @@ def update_automata(corpus,bigrams,fsa):
                     #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
                     #print (lhs,e,rhs,new_prob)
             # when you're through the corpus, update prob for this rule
-            if np.isnan(new_prob): print ("uh oh!", lhs,e,rhs)
-            new_fsa[lhs][rhs][e]=new_prob - p_c
+            if verbose: print ("new prob for %s %s %s: %f - %f = %f"%(lhs,e,rhs,tot_tc,tot_sc,tot_tc-tot_sc))
+            if tot_sc!=log0: # only make a new prob if we used this rule
+                new_fsa[lhs][rhs][e]= tot_tc-tot_sc
+            else: new_fsa[lhs][rhs][e]=fsa[lhs][rhs][e]
+            #print (new_fsa[lhs][rhs][e])
+    #print (new_fsa)
 
     new_bis = copy.deepcopy(bigrams) # copy bigrams
     for a in bigrams: #go through the chain
         for b in bigrams[a]:
-            new_prob=log0
             #print (a,b)
-
+            tot_bc=log0
+            tot_uc=log0
             for (s,parses,p_s) in corpus: # go through the corpus
                 #new_p_this_s=log0
                 for (bis,route,p,sc,tc,bc,uc) in parses:
                     if (a,b) in bc: # look for bigram in counts
-                        # add in this count ratio, times p(parse)
-                        new_prob = add_counts(new_prob,p,bc,uc,(a,b))#,p_s)
-                        #new_p_this_s = add_counts(new_p_this_s,p,bc,uc,(a,b))
+                        # add in counts, times p(parse)
+                        tot_bc=log_add(tot_bc, p + log(bc[(a,b)]))
+                        tot_uc=log_add(tot_uc, p + log(uc[a]))
                 #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
-            new_bis[a][b]=new_prob - p_c # new prob
+            if verbose: print ("new prob for %s %s: %f - %f = %f"%(a,b,tot_bc,tot_uc,tot_bc-tot_uc))
+            if tot_uc!=log0: # only make a new prob if we used this rule
+                new_bis[a][b]=tot_bc-tot_uc # new prob
+            else: new_bis[a][b]=bigrams[a][b]
             
     return new_bis,new_fsa
 
 
 
-
+def check_fsa(fsa):
+    ok=True
+    for lhs in fsa:
+        tot=log0
+        for rhs in fsa[lhs]:
+            for e in fsa[lhs][rhs]:
+                tot=log_add(tot,fsa[lhs][rhs][e])
+        ok = np.isclose(tot,0.)
+    return ok
 
 
 def em_main(parsed_corpus,bigrams,fsm,n,start='S',end='F'):
