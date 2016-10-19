@@ -82,8 +82,18 @@ Similarly, given a corpus, we compute the weighted sum of these updates:
 \begin{definition}[corpus update rule]
   Given a corpus $s\in C$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
-  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$
+ $$\phi_C'(q,e,q') = \frac{\sum_{(b,r)\in\PARSES} p_\phi(b,r)~ TC_r(q,e,q')}{\sum_{(b,r)\in\PARSES} p_\phi(b,r)~ SC_r(q)}$$ 
+
+
+% I'm changing this --M
+%  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$ 
 \end{definition}
+
+The sums can't be combined into one sum because sometimes there are parses that visit state $q$ but don't follow transition $(q,e,q')$. However, we still want that visit in the state counts for that transition.
+
+We can't use the probability of the whole corpus because not all sentences have parses that visit all states.
+
+
 
 We leave it as an exercise to the reader to show that this equivalent to summing over all parses.
 
@@ -96,3 +106,8 @@ TODO:
 
 
 \end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:

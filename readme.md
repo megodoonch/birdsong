@@ -2,18 +2,20 @@
 
 
 ## File structure
-* `ckypy/` contains the basic CKY parser
+* `markhov/` contains a model with two Markhov chains: one for the bigrams and one for the operations
+	* `markhov.py` houses the main functions for parsing the surface sentences
+	* `em.py` has the expectation maximisation learner
+	* depricated: `cky.py` has a CKY parser for the regular grammar of the operations. It also has the beginnings of the I/O learner: outside probabilities and the expected counts of a rule in a sentence.
+	* `development.py` has some old functions that I don't want to throw away just yet
+
+* Depricated: `ckypy/` contains the basic CKY parser
 	* `input` contains output from the previous OCaml script so that we can easily extract the rules
 	* `read_cath8_parses.py` reads `input` and does something with it.
 	* `cky.py` is the parser we'll probably use. It treats copying as a string operation.
 	* `cky_constituent_copy.py` this is a version of the parser that only copies constituents and does so with rules marked as copy rules. Currently imported in `read_cath8_parses.py`.
 	* `common.py` contains functions common to both parsers
-* `mg/` contains a minimalist-style parser
+* Depricated: `mg/` contains a minimalist-style parser
 	* `parser.py` is a draft of a minimalist grammar style cky parser that handles copies and transitions. This might be what we want. More later...
-* `markhov/` contains a model with two Markhov chains: one for the bigrams and one for the operations
-	* `markhov.py` houses the main functions for this model, primarily:
-	* `cky.py` has a CKY parser for the regular grammar of the operations. It also has the beginnings of the I/O learner: outside probabilities and the expected counts of a rule in a sentence.
-	* `development.py` has some old functions that I don't want to throw away just yet
 	  
 
 ## terminology
@@ -108,36 +110,41 @@ We have a 2-step grammar. Ops generates a derivation "tree" (really a sequence) 
 
 I think I've decided not ignore the final transitional probability at least for now. I did make two generators, one that cares and one that doesn't. The parser works the same regardless. I think.
 
+## Learning
 
-### CKY parsing
+We use an expectation-maximisation algorithm to learn the optimal probabilities for the two automata.
 
-The CKY parser parses the parse strings. We do this so we can use the Inside-Outside algorithm to train the rule probabilities. This is in `markhov/cky.py`.
+For each transition, we take the number of times we took that transition and divide it by the number of times we visited its origin state. The number of times a transition was taken or a state visited is multiplied by the probability of the parse in question. The fraction is the new probability for that transition
 
-Since the grammar is regular, we can simplify quite a bit. We only ever fill the diagonal and the last column, and we always know where to look for a potential sister and where to look in the backpointers. We don't need to loop over partitions, and we only have to fill the last column.
-
-### Inside-Outside Algorithm
-
-`parse`: We CKY-parse each parse string separately, and when we do the I/O counts we add up all rule uses in all parses of a given surface string.
-
-For example, if the bird says *aa*, `parse` in `markhov.py` will give us two parses: (*mg mg end* , *(aa* ) and (*mg copy end* , *(a* ). We run the CKY parser on each of these. When we calculate the expected counts of the rule `S->MG NotCL` in sentence *aa*, we include the use in both parses.
-
-`outside`: Outside probabilities are currently calculated normally EXCEPT that the top right corner is not initialised to 1, but rather to the proportion of the sentence probabilitiy the parse represents. This might not be necessary: I think this fraction might factor out so that we can just include it in the expected counts calculation for the parse.
-
-`c_phi`: Expected counts are calculated differntly rom usual because the parses are not all housed in the same chart. I'll write more about this tomorrow.
+![Notes on learner](conceptual_smart_stuff.pdf)
 
 
-**Development notes**
 
-I tried to put all parse strings into the same cky chart. This doesn't work. The cky parser predicts strings that are not in the original set of parse strings.
+
+<!-- ### CKY parsing -->
+
+<!-- The CKY parser parses the parse strings. We do this so we can use the Inside-Outside algorithm to train the rule probabilities. This is in `markhov/cky.py`. -->
+
+<!-- Since the grammar is regular, we can simplify quite a bit. We only ever fill the diagonal and the last column, and we always know where to look for a potential sister and where to look in the backpointers. We don't need to loop over partitions, and we only have to fill the last column. -->
+
+<!-- ### Inside-Outside Algorithm -->
+
+<!-- `parse`: We CKY-parse each parse string separately, and when we do the I/O counts we add up all rule uses in all parses of a given surface string. -->
+
+<!-- For example, if the bird says *aa*, `parse` in `markhov.py` will give us two parses: (*mg mg end* , *(aa* ) and (*mg copy end* , *(a* ). We run the CKY parser on each of these. When we calculate the expected counts of the rule `S->MG NotCL` in sentence *aa*, we include the use in both parses. -->
+
+<!-- `outside`: Outside probabilities are currently calculated normally EXCEPT that the top right corner is not initialised to 1, but rather to the proportion of the sentence probabilitiy the parse represents. This might not be necessary: I think this fraction might factor out so that we can just include it in the expected counts calculation for the parse. -->
+
+<!-- `c_phi`: Expected counts are calculated differntly rom usual because the parses are not all housed in the same chart. I'll write more about this tomorrow. -->
+
+
+<!-- **Development notes** -->
+
+<!-- I tried to put all parse strings into the same cky chart. This doesn't work. The cky parser predicts strings that are not in the original set of parse strings. -->
 
 
 
 ## Plan
-* Read more about training two things at once
-* Extend c_phi to expected counts for a corpus
-* calculate new probs
-* iterate I/O!
-* prove that we're doing the expected counts correctly
 
 ## Misc notes
 
