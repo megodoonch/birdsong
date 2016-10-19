@@ -63,18 +63,32 @@ The set of all possible states is $\STATES$ and the set of all operations is $\O
 \end{definition}
 
 
-\begin{definition}[update rule]
+\begin{definition}[sentence-level update rule]
   Given a sentence $s$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
-  $$\phi'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC(q,e,q')}{\SC(q)}$$
+  $$\phi_s'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC(q,e,q')}{\SC(q)}$$
 \end{definition}
 
 We can write more simply $p_\phi(s)=\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')$ so that
 
-$$\phi'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC(q,e,q')}{\SC(q)}$$
+$$\phi_s'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC(q,e,q')}{\SC(q)}$$
 
 
+Similarly, given a corpus, we compute the weighted sum of these updates:
+\begin{definition}[corpus update rule]
+  Given a corpus $s\in C$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
+  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$
+\end{definition}
+
+We leave it as an exercise to the reader to show that this equivalent to summing over all parses.
+
+
+TODO:
+\begin{itemize}
+\item Prove correctness (rule probabilities with the same left hand side sum to one)
+\item Prove convergence
+\end{itemize}
 
 
 \end{document}
