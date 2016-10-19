@@ -18,11 +18,15 @@
 
 \section{Definitions}
 
-\newcommand\STATES{\mathcal{S}}
-\newcommand\OPS{\mathcal{O}}
-\newcommand\BIGR{\mathcal{B}}
+%\newcommand\STATES{\mathcal{S}}
+\newcommand\STATES{\mathbb{S}}
+%\newcommand\OPS{\mathcal{O}}
+\newcommand\OPS{\mathbb{O}}
+%\newcommand\BIGR{\mathcal{B}}
+\newcommand\BIGR{\mathbb{B}}
 \newcommand\FSA{\textsc{FSA}}
-\newcommand\PARSES{\mathcal{P}}
+%\newcommand\PARSES{\mathcal{P}}
+\newcommand\PARSES{\mathbb{P}}
 \newcommand\SC{\textsc{SC}}
 \newcommand\TC{\textsc{TC}}
 \newcommand\N{\mathbb{N}}
@@ -66,12 +70,12 @@ The set of all possible states is $\STATES$ and the set of all operations is $\O
 \begin{definition}[sentence-level update rule]
   Given a sentence $s$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
-  $$\phi_s'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC(q,e,q')}{\SC(q)}$$
+  $$\phi_s'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC_r(q,e,q')}{\SC_r(q)}$$
 \end{definition}
 
 We can write more simply $p_\phi(s)=\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')$ so that
 
-$$\phi_s'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC(q,e,q')}{\SC(q)}$$
+$$\phi_s'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC_r(q,e,q')}{\SC_r(q)}$$
 
 
 Similarly, given a corpus, we compute the weighted sum of these updates:
