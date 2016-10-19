@@ -634,7 +634,7 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
     Returns
     probability of parse (float)
     """
-    (bis,route,_)=parse
+    (bis,route)=parse[0],parse[1]
     return p_route(route,fsa,start,end)+probability_bigrams(bis,bigrams)
 
 
