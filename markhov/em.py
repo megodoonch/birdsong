@@ -12,7 +12,7 @@ import markhov
 import fsa
 import bigrams
 
-from markhov import log0, log_add, log
+from markhov import log0, log_add, log, log_sum
 
 ops=fsa.ops
 bigrams=bigrams.bigrams
@@ -228,7 +228,7 @@ def update_automata(corpus,bigrams,fsa):
 
 
 def p_corpus(parsed_corpus):
-    return sum([p for (s,parses,p) in parsed_corpus])
+    return log_sum([p for (s,parses,p) in parsed_corpus])
 
 
 def em(parsed_corpus,bigrams,fsm,n,start='S',end='F'):

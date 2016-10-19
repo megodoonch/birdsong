@@ -27,7 +27,6 @@ def log_add(logx,logy):
     logx : float
     logy : float"""
 
-    log0 = float('-inf')
     if logx==log0 and logy==log0: # avoid nan
         return log0
     # First, make X the maximum
@@ -46,6 +45,14 @@ def log_add(logx,logy):
     # Otherwise, use some simple algebra to stay in the log domain
     # (i.e. here we use log(X)+log(Y) = log(X)+log(1.0+exp(log(Y)-log(X)))
     return logx + np.log(1.0 + np.exp(negdiff))
+
+
+def log_sum(fs):
+    tot = log0
+    for f in fs:
+        tot = log_add(tot,f)
+    return tot
+
 
 #### OPERATIONS PFSAs #######
 
