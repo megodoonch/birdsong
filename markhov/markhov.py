@@ -605,7 +605,6 @@ def p_route(route,fsa,start='S',end='F'):
     route   : (qs,es) where qs are a sequence of states of the FSA
               and es are sequence of operations chosen from mg,copy,clear,end    
     fsa     : PFSA of operations implemented as dict
-    verbose : for debugging
     """
     (qs,es) = route
     if qs[0] != start or qs[-1] != end:
@@ -618,10 +617,30 @@ def p_route(route,fsa,start='S',end='F'):
 
 
 def clean_parse(parse):
+    """
+    Remove the stuff we don't need from a parse
+
+    Arguments
+    parse : (bis,buffer,route,k,prob)
+
+    Returns
+    (bis,route,p)
+
+    """
     (bis,_,route,__,p)=parse
     return (bis,route,p)
 
 def clean_parses(parses):
+    """
+    Remove the stuff we don't need from a list of parses
+
+    Arguments
+    parses : list of (bis,buffer,route,k,prob)
+
+    Returns
+    list of (bis,route,p)
+
+    """
     clean = []
     for parse in parses:
         clean.append(clean_parse(parse))
