@@ -67,6 +67,25 @@ The set of all possible states is $\STATES$ and the set of all operations is $\O
 \end{definition}
 
 
+\section{Likelihoods}
+
+\begin{definition}[rule probability assignment]
+A rule probability assignment is an assignment of a probability to each transition, i.e. $p(q,e,q')$, such that $\sum_{q'}p(q,e,q')=1$
+\end{definition}
+
+\begin{definition}[likelihoods]
+A rule probability assignment can then be extended in a straightforward way to yield, given a sentence $s$ the probability of the sentence $p(s)$ and by extension given a corpus $C$ the probability of the corpus $p(C)=\prod_{s\in C}p(s)$.
+\end{definition}
+
+So our task is given a corpus $C$ to find a probability assignment that maximises $p(C)$. 
+
+Since the search space is large, it may only be possible to find a local maximum and not a global maximum.
+
+We're somewhat unsure how the following achieves this, but it seems to work.
+
+
+\section{Iterative rule updates}
+
 
 We want to estimate the likelihood of each rule in a given corpus. For this, we iteratively re-estimate the rule probabilities: given a rule probability assignment, we can re-estimate the probabilities of every parse of a sentence, and then this changes the probabilities that each rule was used.
 
@@ -109,13 +128,14 @@ We can't use the probability of the whole corpus because not all sentences have 
 
 
 
-We leave it as an exercise to the reader to show that this equivalent to summing over all parses.
 
 
 TODO:
 \begin{itemize}
 \item Prove correctness (rule probabilities with the same left hand side sum to one)
-\item Prove convergence
+\item Prove that if there is no ambiguity then the updated probability rules do not depend on the initial rule assignments (i.e. you converge in one step).
+\item Prove that each rule update increases the likelihood of the corpus.
+\item Prove convergence.
 \end{itemize}
 
 
