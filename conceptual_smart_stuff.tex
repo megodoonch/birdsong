@@ -96,7 +96,8 @@ $$\phi(q,q') = \frac{\textrm{expected number of times we went }q\rightarrow q'}{
 Now, given say a sentence $s$, the expected number of times we used a particular transition, is:
 \begin{eqnarray*}
   E_s(q,e,q') & = & \textrm{expected number of times we went }~q\rightarrow^eq'~\textrm{to make sentence}~s \\
-              & = & \sum_{r\in\PARSES(s)}\frac{p(r)}{p(s)}[\textrm{number of times}~q\rightarrow^eq'\textrm{ occurs in }r ]
+  & = & \sum_{r\in\PARSES(s)}\frac{p_\phi(r)}{p_\phi(s)}[\textrm{number of times}~q\rightarrow^eq'\textrm{ occurs in }r ] \\
+  & = & \sum_{r\in\PARSES(s)}\frac{p_\phi(r)}{p_\phi(s)}\TC_r(q,e,q')
   \end{eqnarray*}
 
 Why divide by the probability of the sentence? This is because the sentence is given. For example, if a sentence has exactly one parse, but it uses a lot of rules, then the expected number of times a particular rule got used is exactly the number of times it got used in that one parse, \emph{not} dividing by the (very small) probability of that sentence.
@@ -113,17 +114,16 @@ Now given a corpus $C$, we simply add the expected number of times rules got use
 \begin{definition}[corpus update rule bis]
   Given a corpus $C$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
-  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} \frac{p_\phi(b,r)}{p(s)}~ \TC_r(q,e,q')}{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} \frac{p_\phi(b,r)}{p(s)}~ \SC_r(q)}$$ 
-
-  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \TC_r(q,e,q')}{\sum_{s\in C}\frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \SC_r(q)}$$ 
+  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} \frac{p_\phi(b,r)}{p_\phi(s)}~ \TC_r(q,e,q')}{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} \frac{p_\phi(b,r)}{p_\phi(s)}~ \SC_r(q)}$$ 
 
 \end{definition}
 
 
+Equivalently,
 
-The sums can't be combined into one sum because sometimes there are parses that visit state $q$ but don't follow transition $(q,e,q')$. However, we still want that visit in the state counts for that transition.
+$$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\frac{1}{p_\phi(s)}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \TC_r(q,e,q')}{\sum_{s\in C}\frac{1}{p_\phi(s)}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \SC_r(q)}$$ 
 
-We can't use the probability of the whole corpus because not all sentences have parses that visit all states.
+
 
 
 
@@ -134,7 +134,7 @@ We can't use the probability of the whole corpus because not all sentences have 
 \end{lemma}
 
 \begin{proof}
-  If there is no ambiguity, for any sentence one parse $(b,r)$ exists for which $p(s)=p(b,r)$.
+  If there is no ambiguity, for any sentence one parse $(b,r)$ exists for which $p(s)=p(b,r)$. Further, $\TC_r(q,e,q')$ does not depend on rule probability assignment $\phi$. The result follows.
 \end{proof}
 
 As a corollary, in an unambiguous corpus the algorithm will converge to a global likelihood maximum in one step, irrespective of the original rule probabilities.
@@ -155,6 +155,9 @@ As a corollary, in an unambiguous corpus the algorithm will converge to a global
 
 
 \section{Historic and mostly wrong stuff}
+
+
+
 
 Previously we used this update rule:
 
@@ -185,6 +188,9 @@ Similarly, given a corpus, we compute the updates based on all parses in paralle
 %Floris' version:
 %$$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$ 
 
+The sums can't be combined into one sum because sometimes there are parses that visit state $q$ but don't follow transition $(q,e,q')$. However, we still want that visit in the state counts for that transition.
+
+We can't use the probability of the whole corpus because not all sentences have parses that visit all states.
 
 
 
