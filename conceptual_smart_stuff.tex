@@ -6,6 +6,7 @@
  \usepackage{amsfonts}
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
+\newtheorem{lemma}{Lemma}[section]
 
 
 \title{People who want to parse bigrams and finite state machines\\good}
@@ -92,7 +93,70 @@ We want to estimate the likelihood of each rule in a given corpus. For this, we 
 Roughly speaking, a transition from state $q$ to $q'$ can be estimated to happen with the following likelihood:
 $$\phi(q,q') = \frac{\textrm{expected number of times we went }q\rightarrow q'}{\textrm{expected number of times we were in }q}$$
 
-This leads to the following definition:
+Now, given say a sentence $s$, the expected number of times we used a particular transition, is:
+\begin{eqnarray*}
+  E_s(q,e,q') & = & \textrm{expected number of times we went }~q\rightarrow^eq'~\textrm{to make sentence}~s \\
+              & = & \sum_{r\in\PARSES(s)}\frac{p(r)}{p(s)}[\textrm{number of times}~q\rightarrow^eq'\textrm{ occurs in }r ]
+  \end{eqnarray*}
+
+Why divide by the probability of the sentence? This is because the sentence is given. For example, if a sentence has exactly one parse, but it uses a lot of rules, then the expected number of times a particular rule got used is exactly the number of times it got used in that one parse, \emph{not} dividing by the (very small) probability of that sentence.
+
+
+
+Now given a corpus $C$, we simply add the expected number of times rules got used in each sentence, i.e.
+\begin{eqnarray*}
+  E_C(q,e,q') = \sum_{s\in C}E_s(q,e,q')
+\end{eqnarray*}
+
+
+
+\begin{definition}[corpus update rule bis]
+  Given a corpus $C$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
+
+  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} \frac{p_\phi(b,r)}{p(s)}~ \TC_r(q,e,q')}{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} \frac{p_\phi(b,r)}{p(s)}~ \SC_r(q)}$$ 
+
+  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \TC_r(q,e,q')}{\sum_{s\in C}\frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \SC_r(q)}$$ 
+
+\end{definition}
+
+
+
+The sums can't be combined into one sum because sometimes there are parses that visit state $q$ but don't follow transition $(q,e,q')$. However, we still want that visit in the state counts for that transition.
+
+We can't use the probability of the whole corpus because not all sentences have parses that visit all states.
+
+
+
+\subsection{Some basic results}
+
+\begin{lemma}[no-ambiguity]
+  If there is no ambiguity, $\phi_C'(q,e,q')$ does not depend on the original rule probability assignment.
+\end{lemma}
+
+\begin{proof}
+  If there is no ambiguity, for any sentence one parse $(b,r)$ exists for which $p(s)=p(b,r)$.
+\end{proof}
+
+As a corollary, in an unambiguous corpus the algorithm will converge to a global likelihood maximum in one step, irrespective of the original rule probabilities.
+
+
+
+
+
+
+
+\subsection{TODO}
+\begin{itemize}
+\item Prove correctness (rule probabilities with the same left hand side sum to one)
+\item Prove that each rule update increases the likelihood of the corpus.
+\item Prove convergence.
+\end{itemize}
+
+
+
+\section{Historic and mostly wrong stuff}
+
+Previously we used this update rule:
 
 \begin{definition}[sentence-level update rule]
   Given a sentence $s$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
@@ -122,26 +186,7 @@ Similarly, given a corpus, we compute the updates based on all parses in paralle
 %$$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$ 
 
 
-The sums can't be combined into one sum because sometimes there are parses that visit state $q$ but don't follow transition $(q,e,q')$. However, we still want that visit in the state counts for that transition.
-
-We can't use the probability of the whole corpus because not all sentences have parses that visit all states.
-
-
-
-
-
-TODO:
-\begin{itemize}
-\item Prove correctness (rule probabilities with the same left hand side sum to one)
-\item Prove that if there is no ambiguity then the updated probability rules do not depend on the initial rule assignments (i.e. you converge in one step).
-\item Prove that each rule update increases the likelihood of the corpus.
-\item Prove convergence.
-\end{itemize}
 
 
 \end{document}
 
-%%% Local Variables:
-%%% mode: latex
-%%% TeX-master: t
-%%% End:
