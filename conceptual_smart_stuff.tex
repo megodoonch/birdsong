@@ -67,27 +67,41 @@ The set of all possible states is $\STATES$ and the set of all operations is $\O
 \end{definition}
 
 
+
+We want to estimate the likelihood of each rule in a given corpus. For this, we iteratively re-estimate the rule probabilities: given a rule probability assignment, we can re-estimate the probabilities of every parse of a sentence, and then this changes the probabilities that each rule was used.
+
+Roughly speaking, a transition from state $q$ to $q'$ can be estimated to happen with the following likelihood:
+$$\phi(q,q') = \frac{\textrm{expected number of times we went }q\rightarrow q'}{\textrm{expected number of times we were in }q}$$
+
+This leads to the following definition:
+
 \begin{definition}[sentence-level update rule]
   Given a sentence $s$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
-  $$\phi_s'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC_r(q,e,q')}{\SC_r(q)}$$
+  $$\phi_s'(q,e,q') = \frac{\sum_{(b,r)\in\PARSES(s)}p_\phi(b,r)~\TC_r(q,e,q')}{\sum_{(b,r)\in\PARSES(s)}p_\phi(b,r)~\SC_r(q)}$$
 \end{definition}
 
-We can write more simply $p_\phi(s)=\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')$ so that
+%\begin{definition}[sentence-level update rule]
+%  Given a sentence $s$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:%
+%
+%  $$\phi_s'(q,e,q') = \sum_{(b,r)\in\PARSES(s)}\frac{p_\phi(b,r)}{\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')}\frac{\TC_r(q,e,q')}{\SC_r(q)}$$
+%\end{definition}
 
-$$\phi_s'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC_r(q,e,q')}{\SC_r(q)}$$
+%We can write more simply $p_\phi(s)=\sum_{(b',r')\in\PARSES(s)}p_\phi(b',r')$ so that
+
+%$$\phi_s'(q,e,q') = \frac{1}{p(s)}\sum_{(b,r)\in\PARSES(s)}p(b,r)\frac{\TC_r(q,e,q')}{\SC_r(q)}$$
 
 
-Similarly, given a corpus, we compute the weighted sum of these updates:
+Similarly, given a corpus, we compute the updates based on all parses in parallel:
 \begin{definition}[corpus update rule]
-  Given a corpus $s\in C$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
+  Given a corpus $C$ and given a probability assignment $\phi$ we can define an updated probability assignment $\phi'$ as follows:
 
- $$\phi_C'(q,e,q') = \frac{\sum_{(b,r)\in\PARSES} p_\phi(b,r)~ TC_r(q,e,q')}{\sum_{(b,r)\in\PARSES} p_\phi(b,r)~ SC_r(q)}$$ 
-
-
-% I'm changing this --M
-%  $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$ 
+ $$\phi_C'(q,e,q') = \frac{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \TC_r(q,e,q')}{\sum_{s\in C}\sum_{(b,r)\in\PARSES(s)} p_\phi(b,r)~ \SC_r(q)}$$ 
 \end{definition}
+
+%Floris' version:
+%$$\phi_C'(q,e,q') = \frac{\sum_{s\in C}p(s)\phi_s'(q,e,q')}{\sum_{s\in C}p(s)}$$ 
+
 
 The sums can't be combined into one sum because sometimes there are parses that visit state $q$ but don't follow transition $(q,e,q')$. However, we still want that visit in the state counts for that transition.
 
