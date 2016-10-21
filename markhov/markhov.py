@@ -194,6 +194,11 @@ def fsa2string(fsa):
 
     return s
 
+
+
+
+########### GENERATE A SENTENCE ##############
+
 ##### choosing the move #######
 
 def next_step(current,chain):
@@ -224,7 +229,6 @@ def next_step(current,chain):
             
 
 
-########### GENERATE A SENTENCE ##############
 
 def step(state,ops):
     """
@@ -397,72 +401,101 @@ def possible_transitions(q,fsm):
 
 
 
+
+
+
+
 def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
-    """ 
-    Applies transition t in the given state,
-    if this is actually possible given the string
+    """
+    Basically we have an incomplete parse (a parse of an initial segment of a sentence)
+    and we try and apply transition t; if this transition is consistent with the string
+    then we return the new incomplete parse corresponding to the transition being applied
+    and otherwise we return None.
+
+    Specifically:
+    An incomplete parse includes a pointer to where we are at in the sentence.
+    Applies transition t in the given state, if this is actually possible given the string
     and buffer and bigram chain; if so, returns a copy of the state
-    with the transition applied and the pointer 
-    in the string advanced to the new location
-    Also checks whether we just completed a parse.
-    If this transition is not possible, return None.
+    with the transition applied and the pointer in the string advanced to the new location
+    Also checks whether we just completed a parse. If this transition is not possible, return None.
 
     Arguments
-    state   : aka an agenda task of the form (bigrams used,buffer,(states visited,operations used),index for where we are in the sentence)
+    state   : aka an agenda task of the form 
+              (bigrams used,buffer,(states visited,operations used),pointer for where we are in the sentence)
     t       : transition (new state, operation)
     fsm     : the operations FSA
     bigrams : the bigram Markhov chain
-    s : sentence
+    s       : sentence (list of strings)
     verbose : for debugging
 
-    Returns
-    (new state, gram) where gram is true if this is a complete, valid parse
+    Returns None if this transition is not possible; otherwise
+    Returns (new state, gram) where gram is true if this is a complete, valid parse
     """
+
+    #### TODO Meaghan: remove p from all of this
+    
     #if verbose: print ("copy and apply transition")
     (bis,buf,(qs,ops),k,p)=state
     new_bis,new_buf,new_qs,new_ops=bis[:],buf[:],qs[:],ops[:] # make a copy
 
+    # Unpack the transition; next_state is the state we would be in after applying the transition,
+    # op is the operation applied as part of this transition, and p_new is ?????? TODO MEAGHAN
     (next_state,op,p_new)=t
     n=len(s)
     gram=False # this will be true if we end at the final state
 
+    # According to the operation that we want to apply as part of this transition,
+    # apply it, and if necessary, check that it is consistent with the string "locally".
     if op=='clear':
         if verbose: print (" Clear")
         new_buf=[] # clear the buffer
+        # Note that we don't need to check whether this is consistent with the string
+        # because whether or not Clear is possible here depends on stuff further downstring (eh downstream the string)
 
-    elif op=='copy':
+    elif op=='copy': # Try to apply copy
         if verbose: print (" Copy")
+
+        # Okay, so if we apply copy here, that means that whatever is in the buffer now would
+        # get copied after the current pointer position k.
+        # That means that Copy would have pasted the buffer starting at position k.
+        # We have to check whether that is actually what we observe in the string.
         copy_end = k+len(buf)
         if copy_end>n:
             if verbose: print ("no room for a copy")
             return  # no room for a copy here
+
         if verbose: print ("buffer ",buf)
         if verbose: print ("copy? ", s[k : copy_end])
-        if buf==s[k : copy_end]: # if this is a copy            
-            new_buf+=new_buf # copy the buffer
-            k=copy_end # move the pointer to the end of the copy
-        else: 
+        
+        if buf==s[k : copy_end]: # Check whether the buffer could have been pasted at this position k
+            # Whatever material we just copied also needs to get added to the buffer, because if we call Copy afterwards,
+            # it will need to re-copy the material we just pasted.
+            new_buf+=new_buf 
+            k=copy_end # advance the pointer to the end of the copied material
+        else: # If the material downstring is not consistent with what we have in the buffer, we could not have applied Copy here.
             if verbose: print ("not a copy")
-            return 
+            return None
 
-    elif op=='mg':
-        if verbose: 
-            print (" Merge")
+    elif op=='mg': # Try and apply merge, which means turning to our bigram generator and letting it generate a new word.
+        if verbose: print (" Merge")
             
-        if k>n-1:
+        if k>n-1: # If we are already at the end of the string...
             if verbose: print ("no room to Merge")
-            return # if we don't have room for more merging
+            return None
 
         if verbose: print (bis[-1],s[k])
 
+        # If we were to apply merge at this point, it would mean the next word in the sentence would have to
+        # fit with the previous word (that was previously generated).
+        # That is, the transition from s[k-1] to s[k] should be a valid bigram.
         if s[k] in bigrams[bis[-1]]: # if the bigram is allowed
             new_bis.append(s[k]) # add the new bigram
             new_buf.append(s[k])
             p+=bigrams[bis[-1]][s[k]]
-            k+=1 # move over one word
+            k+=1 # move the pointer in our sentence over one word
         else: 
             if verbose: print ('illegal bigram %s %s'%(s[k],bis[-1]))
-            return 
+            return None
 
     elif op=='end' and k==n:
         if verbose: print (" End") # might want to add a ']' here?
@@ -483,15 +516,11 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
 
 def parse(s,bigrams,fsm,start='S',verbose=False):
     """
-    Parses a string
-    Uses an agenda and a list of complete parses.
+    Parses a surface string
     We initialise the agenda with a start state,  [ (['['],[],(['S'],[]),1) ]
-    An agenda item is a list of 4 elements:
-    the string so far, the buffer, the route so far (states,ops), and the index we're at in the sentence, k
-    We add onto an agenda item until it is a complete parse, in which case we move it to the output, parses
         
     Arguments
-    s       : the string to be parsed -- string
+    s       : the string to be parsed -- string (should consist of words separated by a space)
     bigrams : bigram markhov chain
     fsm     : operations FSM
     verbose : for debugging
@@ -500,23 +529,40 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
     list of complete parses
     """
 
+    # Let's build an agenda of incomplete parses (tasks)
+    # An incomplete parse is a parse of the initial segment of the sentence,
+    # and therefore the counter usually not at the end of the sentence (there is
+    # some material left to be parsed).
+    # 
+    # An agenda item is a list of 4 elements:
+    # the string so far, the buffer, the route so far (states,ops), and the index we're at in the sentence, k
+    # We add onto an agenda item until it is a complete parse, in which case we move it to the output, parses
     agenda = [ (['['],[],([start],[]),0,0.) ] # initialise with both start categories
 
-    complete = [] # for the complete parses
+    complete = [] # for the complete parses that are valid (i.e. parses that go down a garden path are not kept)
 
-    tries=0
+    tries=0  # for verbosity, keeps track of how many possible transitions you tried before you got a "working" one.
 
-    s=s.split(' ')
-    
+    s=s.split(' ') # split sentence into list of words
+
+
+    # While there are still tasks on the agenda...
     while len(agenda)>0:
-        task = agenda[0] # take the first agenda item
+        
+        task = agenda[0] # take the next agenda item (task)
         (bis,buf,(qs,ops),k,p)=task # extract the current task
+
         if verbose: print ("\nprefix: %s"%(' '.join(s[:k])))
 
+        # Okay, so this parse is currently in state qs[-1] (the state we got to from the last transition)
+        # Now we check where we can go from here, and try each of these transitions in turn.
         for t in possible_transitions(qs[-1],fsm): # loop through possible transitions in FSA
             if verbose: print ("\ntransition: ",t)
             tries+=1
-            result = copy_and_apply_transition(task,t,fsm,bigrams,s,verbose) # try to apply each one
+
+            # Try and apply transition t, which means that we advance the state of our FSA
+            # and we check whether this is actually consistent with the string.
+            result = copy_and_apply_transition(task,t,fsm,bigrams,s,verbose) 
             if result!=None: # every time we fail to apply a transition, result=None
                 (newtask,gram)=result
                 if gram: # if it's a complete grammatical sentence
@@ -533,91 +579,51 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
             print (parse2string(p))
         print ("\nAttempts to transition: %i"%tries)
         print ("Number of parses: %i"%len(complete))
+        
     return complete
 
 
 
 
+"""
+
+TODO: Meaghan add explanation of trans_probs (probably at the beginning of the doc).
+
+"""
 
 
 
 
-
-def probability_bigrams(s,bigrams):
+def probability_bigrams(bis,trans_probs):
     """
-    Calculates the probability of the sentence based just on the bigrams
+    Calculates the bigram probability of the string of words bis.
+
+    Arguments
+    bis         : sequence of merged words. If there's no copying this is the whole string; otherwise some is missing
+    trans_probs : markhov chain of transitional probabilities implemented as dict
     """
-    p=0.
-    for i in range(1,len(s)):
-        p+=bigrams[s[i-1]][s[i]]
-    return p
+    logp=0. # is log-transformed, so p=1
+    for i in range(1,len(bis)):
+        logp+=trans_probs[bis[i-1]][bis[i]] # assumes that probabilities are log-transformed so to multiply them we add the log-transformed ps
+    return logp
 
 
-def check_bigrams(s,bigrams):
+
+
+def probability_route(route,fsa,start='S',end='F'):
     """
-    Calculates the probability of the string based just on the bigrams
+    Returns probability of that sequence (or -Inf if this is not a valid parse)
 
     Arguments:
-    s       : sequence of merged words. If there's no copying this is the whole string; otherwise some is missing
-    bigrams : markhov chain of transitions implemented as dict
-    """
-    p=0.
-    for i in range(1,len(s)):
-        if s[i-1] in bigrams and s[i] in bigrams[s[i-1]]:
-            p+=bigrams[s[i-1]][s[i]]
-        else: return (False,log0)
-    return (True,p)
-
-
-
-
-
-def check_ops(op_list,ops,verbose=False):
-    """
-    Checks the validity of a sequence of operations. 
-    Returns probability of that sequence
-
-    Arguments:
-    op_list : sequence of operations chosen from mg,copy,clear,end
-    ops     : PFSM of operations implemented as dict
-    """
-    p=0.
-    state='S'
-    valid=True # valid parse
-    while len(op_list)>0 and valid: # we stop if we run out of operations or we realise this isn't even a valid parse
-        if verbose: print("Current state: %s"%state)
-        if verbose: print (op_list)
-        op=op_list[0] # take the first operation
-        nexts=ops[state] # find the out-arrows
-        next_state=None # initialise next state
-        new_p=log0 # initialise prob of transition
-        for st in nexts: # look through out arrows
-            if verbose: print (st)
-            if op in nexts[st].keys(): # if this is the right arrow
-                new_p=nexts[st][op] # prob of transition
-                next_state=st # new state
-                break # we're done here
-        p+=new_p # multiply in new prob
-        valid=next_state!=None # if we didn't find a state to transition to, the parse is invalid
-        op_list=op_list[1:] # onto the next operation. I think I'm being overly OCamly here.
-        state=next_state # onto the next state
-
-    return (valid and state=='F',p) # it's valid if we didn't run into a problem and we end in a final state
-
-
-def p_route(route,fsa,start='S',end='F'):
-    """
-    Checks the validity of a sequence of operations. 
-    Returns probability of that sequence
-
-    Arguments:
-    route   : (qs,es) where qs are a sequence of states of the FSA
-              and es are sequence of operations chosen from mg,copy,clear,end    
+    route   : (qs,es) where qs are a sequence of FSA states visited 
+              and es are sequence of operations chosen from mg,copy,clear,end
     fsa     : PFSA of operations implemented as dict
     """
     (qs,es) = route
-    if qs[0] != start or qs[-1] != end:
+    assert len(qs)==len(es)+1
+    if qs[0] != start or qs[-1] != end: # If this is not a valid parse...
         return -inf
+
     p=0. # initialise total (log) prob
     for i in range(1,len(qs)):
         p+=fsa[qs[i-1]][qs[i]][es[i-1]]
@@ -670,7 +676,7 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
     probability of parse (float)
     """
     (bis,route)=parse[0],parse[1]
-    return p_route(route,fsa,start,end)+probability_bigrams(bis,bigrams)
+    return probability_route(route,fsa,start,end)+probability_bigrams(bis,bigrams)
 
 
 def change_p_parse(parse,bigrams,fsa,start='S',end='F'):

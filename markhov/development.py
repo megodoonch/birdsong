@@ -285,3 +285,58 @@ def probability(s,bigrams,ops):
                     return parses # if this isn't a legal transition, this sentence is not grammatical
 
     return parses
+
+
+
+
+
+
+
+def check_ops(op_list,ops,verbose=False):
+    """
+    Checks the validity of a sequence of operations. 
+    Returns probability of that sequence
+
+    Arguments:
+    op_list : sequence of operations chosen from mg,copy,clear,end
+    ops     : PFSM of operations implemented as dict
+    """
+    p=0.
+    state='S'
+    valid=True # valid parse
+    while len(op_list)>0 and valid: # we stop if we run out of operations or we realise this isn't even a valid parse
+        if verbose: print("Current state: %s"%state)
+        if verbose: print (op_list)
+        op=op_list[0] # take the first operation
+        nexts=ops[state] # find the out-arrows
+        next_state=None # initialise next state
+        new_p=log0 # initialise prob of transition
+        for st in nexts: # look through out arrows
+            if verbose: print (st)
+            if op in nexts[st].keys(): # if this is the right arrow
+                new_p=nexts[st][op] # prob of transition
+                next_state=st # new state
+                break # we're done here
+        p+=new_p # multiply in new prob
+        valid=next_state!=None # if we didn't find a state to transition to, the parse is invalid
+        op_list=op_list[1:] # onto the next operation. I think I'm being overly OCamly here.
+        state=next_state # onto the next state
+
+    return (valid and state=='F',p) # it's valid if we didn't run into a problem and we end in a final state
+
+def check_bigrams(s,bigrams):
+    """
+    Calculates the probability of the string based just on the bigrams
+
+    Arguments:
+    s       : sequence of merged words. If there's no copying this is the whole string; otherwise some is missing
+    bigrams : markhov chain of transitions implemented as dict
+    """
+    p=0.
+    for i in range(1,len(s)):
+        if s[i-1] in bigrams and s[i] in bigrams[s[i-1]]:
+            p+=bigrams[s[i-1]][s[i]]
+        else: return (False,log0)
+    return (True,p)
+
+
