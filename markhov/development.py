@@ -354,3 +354,100 @@ def change_p_parse(parse,bigrams,fsa,start='S',end='F'):
 def sum_p_corpus(parsed_corpus):
     return  log_sum([p for (s,parses,p) in parsed_corpus])
 
+
+
+
+
+
+def update_automata_oldmeaghan(corpus,bigrams,fsa,verbose=False):
+    """
+    updates the bigram chain and operations fsa
+    
+    Arguments
+    corpus : a parsed corpus of triples (s,parses,prob)
+              where parses is a list of
+              (bis,route,prob,state counts, trans counts,
+              bigram counts, unigram counts)
+    bigrams : bigram morkhov chain (dict)
+    fsa     : operations FSA (dict)
+
+    returns
+    updated bigrams, updated fsa
+
+    """
+
+    ## TODO: can fsa just be the rules themselves, not their probabilities? i.e. a dict the same as fsa except for the very last level.
+
+    ## TODO: this is really two separate functions that don't need each other's stuff
+
+    #TODO smoothing for unused rules
+    #new_fsa = copy.deepcopy(fsa) #copy the ops FSA
+    new_fsa = {}
+    for lhs in fsa: # go through the FSA
+        if verbose: print (lhs)
+        new_fsa[lhs]={}
+        for rhs in new_fsa[lhs]:
+            #print (rhs)
+            new_fsa[lhs][rhs]={}
+            for e in new_fsa[lhs][rhs]:
+                #print (e)
+                #print (lhs,e,rhs)
+                tot_tc=log0
+                tot_sc=log0
+
+                for (s,parses,p_s) in corpus: # go through parsed corpus
+                    #print (s)
+                    # add up all the TCs/SCs for the parses of this sentence
+                    for (_,_,p,sc,tc,_,_) in parses:
+                        #print (tc)
+                        #print (sc)
+                        if (lhs,e,rhs) in tc: # if this parse has this rule
+                            # add in counts, times p(parse)/p(sent)
+                            tot_tc=log_add(tot_tc, p-p_s + log(tc[(lhs,e,rhs)]))
+                            #print ("tot_tc: %f"%tot_tc)
+                        if lhs in sc:
+                            tot_sc=log_add(tot_sc, p-p_s + log(sc[lhs]))
+                            #print ("tot_sc: %f"%tot_sc)
+
+                # when you're through the corpus, update prob for this rule
+
+                if verbose: print (" new prob for %s %s %s: %f - %f = %f"%(lhs,e,rhs,tot_tc,tot_sc,tot_tc-tot_sc))
+                if tot_sc!=log0: # only make a new prob if we used this state                    
+                    new_fsa[lhs][rhs][e]= tot_tc-tot_sc
+                else:
+                    n_rhs = len(fsa[lhs])
+                    new_fsa[lhs][rhs][e]=0.-log(n_rhs) # 1/n_rhs for this state
+                    if verbose: print (" %s not used; use %.2f instead"%(lhs,0.-log(n_rhs)))
+                    #new_fsa[lhs][rhs][e]=fsa[lhs][rhs][e] # keep old p
+                #print (new_fsa[lhs][rhs][e])
+    #print (new_fsa)
+
+    if verbose: print ("\n Bigrams")
+    new_bis = copy.deepcopy(bigrams) # copy bigrams
+    for a in bigrams: #go through the chain
+        if verbose: print (a)
+        for b in bigrams[a]:
+            #print (a,b)
+            tot_bc=log0
+            tot_uc=log0
+            for (s,parses,p_s) in corpus: # go through the corpus
+                #new_p_this_s=log0
+                for (bis,route,p,sc,tc,bc,uc) in parses:
+                    if (a,b) in bc: # look for bigram in counts
+                        # add in counts, times p(parse)
+                        tot_bc=log_add(tot_bc, p-p_s + log(bc[(a,b)]))
+                    if a in uc:
+                        tot_uc=log_add(tot_uc, p-p_s + log(uc[a]))
+                #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
+            
+            if tot_uc!=log0: # only make a new prob if we used this rule
+                if verbose: print (" new prob for %s %s: %f - %f = %f"%(a,b,tot_bc,tot_uc,tot_bc-tot_uc))
+                new_bis[a][b]=tot_bc-tot_uc # new prob
+            else: 
+                n_rhs = len(bigrams[a])
+                new_bis[a][b]=0.-log(n_rhs)
+                if verbose: print (" %s not used; use %.2f instead"%(a,0.-log(n_rhs)))
+                #new_bis[a][b]=bigrams[a][b] # keep old prob
+            
+    return new_bis,new_fsa
+

@@ -6,6 +6,20 @@ import random
 
 
 
+a="a"
+
+ops = {'S':{'NotCL':['mg']}, # from start we have to merge
+       'NotCL':{'NotCL':['mg','copy'], # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
+               'CLEAR_S':['clear'], # go here to clear the buffer
+               'F':['end'] # go here to end
+           },
+       'CLEAR_S':{'CLEAR':['mg']}, # this is where we've just cleared. Buffer is empty so you can only Merge
+       'CLEAR':{'CLEAR':['mg'], # the last special op was Clear so we can Copy or Merge.
+                'NotCL':['copy'] # if we Copy, the last special op was Copy so go to NotCL
+            },
+       'F':{} #final state
+   }
+
 
 # bigrams = {'a':{']':0.25,'a':0.25,'b':0.5},
 #            'b':{']':0.25,'b':0.25,'a':0.5},
@@ -26,12 +40,18 @@ def bis_log(bigrams):
     return bigrams
 
 
-bigrams = {'a':{'a':0.5,'b':0.5},
+trans = {'a':['a','b'],
+           'b':['b','a'],
+           '[':['a','b']
+       }
+
+
+trans_probs = {'a':{'a':0.5,'b':0.5},
            'b':{'b':0.5,'a':0.5},
            '[':{'a':0.5,'b':0.5}
        }
 
-bigrams=bis_log(bigrams)
+trans_probs=bis_log(trans_probs)
 
 bigrams_ends = {'a':{'a':0.5,'b':0.25,']':0.25},
            'b':{'b':0.5,'a':0.25,']':0.25},
@@ -51,19 +71,19 @@ bigrams_ends=bis_log(bigrams_ends)
 #      }
 
 # (state : state: transition: prob, final)
-ops = {'S':{'COPY':{'mg':1.}}, # from start we have to merge
-       'COPY':{'COPY':{'mg':0.4,'copy':0.1}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
+ops_probs = {'S':{'NotCL':{'mg':1.}}, # from start we have to merge
+       'NotCL':{'NotCL':{'mg':0.3,'copy':0.1}, # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
                'CLEAR_S':{'clear':0.1}, # go here to clear the buffer
                'F':{'end':0.5} # go here to end
            },
        'CLEAR_S':{'CLEAR':{'mg':1.}}, # this is where we've just cleared. Buffer is empty so you can only Merge
        'CLEAR':{'CLEAR':{'mg':0.5}, # the last special op was Clear so we can Copy or Merge.
-                'COPY':{'copy':0.5} # if we Copy, the last special op was Copy so go to COPY
+                'NotCL':{'copy':0.5} # if we Copy, the last special op was Copy so go to NotCL
             },
        'F':{} #final state
    }
 
-ops=ops_log(ops)
+ops_probs=ops_log(ops_probs)
 
 bi_ops = {'S':{'S':{'mg':0.5},
                'F':{'end':0.5}

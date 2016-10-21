@@ -10,6 +10,8 @@ last edited: Oct 11,2016
 import numpy as np
 import random
 
+############ SOME LOG FUNCTIONS ############
+
 log0=float('-inf')
 
 
@@ -96,11 +98,11 @@ def log_sum(fs):
 ##### PRINT #####
 
 def parse2string(parse):
-    (bis,buf,(qs,ops),k,p)=parse
-    return "\nbigrams: %s\nbuffer: %s\nop states: %s\noperations: %s\nk: %i\nprob: %.4f"%(' '.join(bis),' '.join(buf),' '.join(qs),' '.join(ops),k,p)
+    (bis,buf,(qs,ops),k)=parse
+    return "\nbigrams: %s\nbuffer: %s\nop states: %s\noperations: %s\nk: %i"%(' '.join(bis),' '.join(buf),' '.join(qs),' '.join(ops),k)
 
 def parse2tree(parse):
-    (bis,buf,(p_qs,p_ops),k,p)=parse
+    (bis,buf,(p_qs,p_ops),k)=parse
     qs,ops=p_qs[:],p_ops[:]
     qs.reverse() # work from the bottom up
     ops.reverse()
@@ -127,7 +129,7 @@ def parse2dot(parse):
     Returns
     nodes and edges where nodes are pairs of unique names and labels, and edges are pairs of nodes
     """
-    (bis,buf,(qs,ops),k,p)=parse
+    (bis,buf,(qs,ops),k)=parse
     nodes=[]
     edges=[]
     n=0 # for naming nodes uniquely
@@ -367,6 +369,9 @@ def gen_corpus_ends(bigrams,ops,n):
     return corpus
 
 
+
+
+
 ######### PARSE ###########
 
 
@@ -396,7 +401,7 @@ def possible_transitions(q,fsm):
     for s in possible_states:
         #print (possible_states[s])
         for e in possible_states[s]:
-            ts.append((s,e,possible_states[s][e]))
+            ts.append((s,e))
     return ts
 
 
@@ -435,12 +440,12 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
     #### TODO Meaghan: remove p from all of this
     
     #if verbose: print ("copy and apply transition")
-    (bis,buf,(qs,ops),k,p)=state
+    (bis,buf,(qs,ops),k)=state
     new_bis,new_buf,new_qs,new_ops=bis[:],buf[:],qs[:],ops[:] # make a copy
 
     # Unpack the transition; next_state is the state we would be in after applying the transition,
     # op is the operation applied as part of this transition, and p_new is ?????? TODO MEAGHAN
-    (next_state,op,p_new)=t
+    (next_state,op)=t
     n=len(s)
     gram=False # this will be true if we end at the final state
 
@@ -491,7 +496,6 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
         if s[k] in bigrams[bis[-1]]: # if the bigram is allowed
             new_bis.append(s[k]) # add the new bigram
             new_buf.append(s[k])
-            p+=bigrams[bis[-1]][s[k]]
             k+=1 # move the pointer in our sentence over one word
         else: 
             if verbose: print ('illegal bigram %s %s'%(s[k],bis[-1]))
@@ -506,9 +510,9 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
     new_qs.append(next_state) # add the new state
     new_ops.append(op) # add the operation
 
-    if verbose: print ("new state: ",(new_bis,new_buf,(new_qs,new_ops),k,p+p_new),gram)
+    if verbose: print ("new state: ",(new_bis,new_buf,(new_qs,new_ops),k),gram)
     
-    return ((new_bis,new_buf,(new_qs,new_ops),k,p+p_new),gram)
+    return ((new_bis,new_buf,(new_qs,new_ops),k),gram)
 
 
 
@@ -537,7 +541,7 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
     # An agenda item is a list of 4 elements:
     # the string so far, the buffer, the route so far (states,ops), and the index we're at in the sentence, k
     # We add onto an agenda item until it is a complete parse, in which case we move it to the output, parses
-    agenda = [ (['['],[],([start],[]),0,0.) ] # initialise with both start categories
+    agenda = [ (['['],[],([start],[]),0) ] # initialise with both start categories
 
     complete = [] # for the complete parses that are valid (i.e. parses that go down a garden path are not kept)
 
@@ -550,7 +554,7 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
     while len(agenda)>0:
         
         task = agenda[0] # take the next agenda item (task)
-        (bis,buf,(qs,ops),k,p)=task # extract the current task
+        (bis,buf,(qs,ops),k)=task # extract the current task
 
         if verbose: print ("\nprefix: %s"%(' '.join(s[:k])))
 
@@ -583,13 +587,22 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
     return complete
 
 
+def clean_parses(parses):
+    """
+    Remove the stuff we don't need from a list of parses
+
+    Arguments
+    parses : list of (bis,buffer,route,k)
+
+    Returns
+    list of (bis,route)
+
+    """
+    return [ (bis,route) for (bis,_,route,_) in parses ]
 
 
-"""
 
-TODO: Meaghan add explanation of trans_probs (probably at the beginning of the doc).
 
-"""
 
 
 ########### TODO Meaghan: replace bigrams with trans_probs
@@ -631,39 +644,6 @@ def p_route(route,fsa,start='S',end='F'):
     return p
 
 
-def clean_parse(parse):
-    """
-    Remove the stuff we don't need from a parse
-
-    Arguments
-    parse : (bis,buffer,route,k,prob)
-
-    Returns
-    (bis,route,p)
-
-    """
-    (bis,_,route,__,p)=parse
-    return (bis,route,p)
-
-def clean_parses(parses):
-    """
-    Remove the stuff we don't need from a list of parses
-
-    Arguments
-    parses : list of (bis,buffer,route,k,prob)
-
-    Returns
-    list of (bis,route,p)
-
-    """
-    clean = []
-    for parse in parses:
-        clean.append(clean_parse(parse))
-    return clean
-
-
-# TODO Meaghan:
-# clean_parses = [ (bis,route,p) for (bis,_,route,_,p) in parses ]
 
 
 
@@ -683,30 +663,30 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
     Returns
     probability of parse (float)
     """
-    (bis,route,_)=parse
+    (bis,route)=parse
     return p_route(route,fsa,start,end)+p_bigrams(bis,bigrams)
 
 
 
-def p_sent(parses,bigrams,fsa,start='S',end='F'):
-    """returns the probability of all parses of one sentence
+# def p_sent(parses,bigrams,fsa,start='S',end='F'):
+#     """returns the probability of all parses of one sentence
 
-    Arguments
-    parses   : list of (bigrams,route,old parse prob)
-    bigrams  : markhov chain
-    fsa      : operations fsa
-    start    : start category
-    end      : final state
+#     Arguments
+#     parses   : list of (bigrams,route,old parse prob)
+#     bigrams  : markhov chain
+#     fsa      : operations fsa
+#     start    : start category
+#     end      : final state
 
-    Returns
-    probability of sentence (float)
-    """
+#     Returns
+#     probability of sentence (float)
+#     """
 
-    p=log0 # initialise total
-    for parse in parses:
-        p=log_add(p,p_parse(parse,bigrams,fsa,start,end)) # parses are "or"s so we log-sum
+#     p=log0 # initialise total
+#     for parse in parses:
+#         p=log_add(p,p_parse(parse,bigrams,fsa,start,end)) # parses are "or"s so we log-sum
 
-    return p
+#     return p
 
 
 
