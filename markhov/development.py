@@ -340,3 +340,12 @@ def check_bigrams(s,bigrams):
     return (True,p)
 
 
+
+def change_p_parse(parse,bigrams,fsa,start='S',end='F'):
+    """
+    calculate new probability of parse and add it back into the parse
+    """
+    (bis,route,_)=parse
+    return(bis,route,p_parse(parse,bigrams,fsa,start,end))
+
+    

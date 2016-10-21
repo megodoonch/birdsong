@@ -592,9 +592,9 @@ TODO: Meaghan add explanation of trans_probs (probably at the beginning of the d
 """
 
 
+########### TODO Meaghan: replace bigrams with trans_probs
 
-
-def probability_bigrams(bis,trans_probs):
+def p_bigrams(bis,trans_probs):
     """
     Calculates the bigram probability of the string of words bis.
 
@@ -610,7 +610,7 @@ def probability_bigrams(bis,trans_probs):
 
 
 
-def probability_route(route,fsa,start='S',end='F'):
+def p_route(route,fsa,start='S',end='F'):
     """
     Returns probability of that sequence (or -Inf if this is not a valid parse)
 
@@ -662,8 +662,16 @@ def clean_parses(parses):
     return clean
 
 
+# TODO Meaghan:
+# clean_parses = [ (bis,route,p) for (bis,_,route,_,p) in parses ]
+
+
+
+
 def p_parse(parse,bigrams,fsa,start='S',end='F'):
-    """returns the probability of one parse of one sentence
+    """
+    Returns the probability of one parse of one sentence,
+    i.e. the probability of the bigram string and the operations string combined.
 
     Arguments
     parse   : (bigrams,route,old prob)
@@ -675,24 +683,16 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
     Returns
     probability of parse (float)
     """
-    (bis,route)=parse[0],parse[1]
-    return probability_route(route,fsa,start,end)+probability_bigrams(bis,bigrams)
-
-
-def change_p_parse(parse,bigrams,fsa,start='S',end='F'):
-    """
-    calculate new probability of parse and add it back into the parse
-    """
     (bis,route,_)=parse
-    return(bis,route,p_parse(parse,bigrams,fsa,start,end))
+    return p_route(route,fsa,start,end)+p_bigrams(bis,bigrams)
 
-    
+
 
 def p_sent(parses,bigrams,fsa,start='S',end='F'):
     """returns the probability of all parses of one sentence
 
     Arguments
-    parses   : list of (bigrams,route,old prob)
+    parses   : list of (bigrams,route,old parse prob)
     bigrams  : markhov chain
     fsa      : operations fsa
     start    : start category
@@ -707,6 +707,19 @@ def p_sent(parses,bigrams,fsa,start='S',end='F'):
         p=log_add(p,p_parse(parse,bigrams,fsa,start,end)) # parses are "or"s so we log-sum
 
     return p
+
+
+
+
+##
+## TODO Meaghan: probably remove probability
+## Don't give any functions things they don't need.
+##
+## parses = ... # list of (bigrams,route,p)
+## p_sent( [ (bigrams,route) for (bigrams,route,_) in parses ], ...)
+##
+
+
 
 
 
@@ -730,7 +743,7 @@ def string2print(s,bigrams,fsm,start='S'):
         print ("Operations: %s"%(' '.join(p[1][1])))
         print ("Operation states: %s"%(' '.join(p[1][0])))
 
-                #print (parse2tree(p))
+        #print (parse2tree(p))
         prob=log_add(prob,p[-1])
 
 
