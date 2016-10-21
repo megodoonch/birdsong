@@ -227,6 +227,8 @@ def update_automata(corpus,bigrams,fsa,verbose=False):
     updated bigrams, updated fsa
 
     """
+
+    #TODO smoothing for unused rules
     new_fsa = copy.deepcopy(fsa) #copy the ops FSA
     for lhs in new_fsa: # go through the FSA
         if verbose: print (lhs)
@@ -237,34 +239,43 @@ def update_automata(corpus,bigrams,fsa,verbose=False):
                 #print (lhs,e,rhs)
                 tot_tc=log0
                 tot_sc=log0
+
                 for (s,parses,p_s) in corpus: # go through parsed corpus
                     #print (s)
                     # add up all the TCs/SCs for the parses of this sentence
-                    #new_p_this_s=log0
                     for (bis,route,p,sc,tc,bc,uc) in parses:
                         #print (tc)
                         #print (sc)
                         if (lhs,e,rhs) in tc: # if this parse has this rule
                             # add in counts, times p(parse)
-                            tot_tc=log_add(tot_tc, p + log(tc[(lhs,e,rhs)]))
-                            if lhs in sc:
-                                tot_sc=log_add(tot_sc, p + log(sc[lhs]))
-                            #new_p_this_s = add_counts(new_p_this_s,p,tc,sc,(lhs,e,rhs))
-                    # when you've got all the parses for this sentence processed, 
-                    #divide by the prob of the sentence 
-                    #and add the result into the new prob for the rule
-                    #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
-                    #print (lhs,e,rhs,new_prob)
-            # when you're through the corpus, update prob for this rule
-            if verbose: print ("new prob for %s %s %s: %f - %f = %f"%(lhs,e,rhs,tot_tc,tot_sc,tot_tc-tot_sc))
-            if tot_sc!=log0: # only make a new prob if we used this rule
-                new_fsa[lhs][rhs][e]= tot_tc-tot_sc
-            else: new_fsa[lhs][rhs][e]=fsa[lhs][rhs][e]
-            #print (new_fsa[lhs][rhs][e])
+                            tot_tc=log_add(tot_tc, p-p_s + log(tc[(lhs,e,rhs)]))
+                            #print ("tot_tc: %f"%tot_tc)
+                        if lhs in sc:
+                            tot_sc=log_add(tot_sc, p-p_s + log(sc[lhs]))
+                            #print ("tot_sc: %f"%tot_sc)
+
+                        # when you've got all the parses for this sentence processed, 
+                        #divide by the prob of the sentence 
+                        #and add the result into the new prob for the rule
+                        #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
+                        #print (lhs,e,rhs,new_prob)
+                # when you're through the corpus, update prob for this rule
+
+                if verbose: print (" new prob for %s %s %s: %f - %f = %f"%(lhs,e,rhs,tot_tc,tot_sc,tot_tc-tot_sc))
+                if tot_sc!=log0: # only make a new prob if we used this state                    
+                    new_fsa[lhs][rhs][e]= tot_tc-tot_sc
+                else:
+                    n_rhs = len(fsa[lhs])
+                    new_fsa[lhs][rhs][e]=0.-log(n_rhs) # 1/n_rhs for this state
+                    if verbose: print (" %s not used; use %.2f instead"%(lhs,0.-log(n_rhs)))
+                    #new_fsa[lhs][rhs][e]=fsa[lhs][rhs][e] # keep old p
+                #print (new_fsa[lhs][rhs][e])
     #print (new_fsa)
 
+    if verbose: print ("\n Bigrams")
     new_bis = copy.deepcopy(bigrams) # copy bigrams
     for a in bigrams: #go through the chain
+        if verbose: print (a)
         for b in bigrams[a]:
             #print (a,b)
             tot_bc=log0
@@ -274,13 +285,19 @@ def update_automata(corpus,bigrams,fsa,verbose=False):
                 for (bis,route,p,sc,tc,bc,uc) in parses:
                     if (a,b) in bc: # look for bigram in counts
                         # add in counts, times p(parse)
-                        tot_bc=log_add(tot_bc, p + log(bc[(a,b)]))
-                        tot_uc=log_add(tot_uc, p + log(uc[a]))
+                        tot_bc=log_add(tot_bc, p-p_s + log(bc[(a,b)]))
+                    if a in uc:
+                        tot_uc=log_add(tot_uc, p-p_s + log(uc[a]))
                 #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
-            if verbose: print ("new prob for %s %s: %f - %f = %f"%(a,b,tot_bc,tot_uc,tot_bc-tot_uc))
+            
             if tot_uc!=log0: # only make a new prob if we used this rule
+                if verbose: print (" new prob for %s %s: %f - %f = %f"%(a,b,tot_bc,tot_uc,tot_bc-tot_uc))
                 new_bis[a][b]=tot_bc-tot_uc # new prob
-            else: new_bis[a][b]=bigrams[a][b]
+            else: 
+                n_rhs = len(bigrams[a])
+                new_bis[a][b]=0.-log(n_rhs)
+                if verbose: print (" %s not used; use %.2f instead"%(a,0.-log(n_rhs)))
+                #new_bis[a][b]=bigrams[a][b] # keep old prob
             
     return new_bis,new_fsa
 
@@ -289,12 +306,28 @@ def update_automata(corpus,bigrams,fsa,verbose=False):
 def check_fsa(fsa):
     ok=True
     for lhs in fsa:
-        tot=log0
-        for rhs in fsa[lhs]:
-            for e in fsa[lhs][rhs]:
-                tot=log_add(tot,fsa[lhs][rhs][e])
-        ok = np.isclose(tot,0.)
+        if len(fsa[lhs])>0:
+            tot=log0
+            for rhs in fsa[lhs]:
+                for e in fsa[lhs][rhs]:
+                    tot=log_add(tot,fsa[lhs][rhs][e])
+            if not np.isclose(tot,0.):
+                print (lhs)
+                ok=False
     return ok
+
+def check_bis(bigrams):
+    ok=True
+    for a in bigrams:
+        if len(bigrams[a])>0:
+            tot=log0
+            for b in bigrams[a]:
+                tot=log_add(tot,bigrams[a][b])
+            if not np.isclose(tot,0.):
+                print (a)
+                ok=False
+    return ok
+
 
 
 def em_main(parsed_corpus,bigrams,fsm,n,start='S',end='F',verbose=False):
@@ -369,17 +402,21 @@ def em_main(parsed_corpus,bigrams,fsm,n,start='S',end='F',verbose=False):
         if verbose: print ("iteration %i"%i)
         # now we have new automata to iterate over
         new_c,new_bis,new_fsa=inner(new_c,new_bis,new_fsa)
+        if not check_fsa(new_fsa):
+            print ("Ops FSA invalid at iteration %i")
+            print (fsa2string(new_fsa))
         corpora.append(new_c)
         bigram_chains.append(new_bis)
         ops_fsas.append(new_fsa)
         if verbose: print ("LL: %.2f"%p_corpus(new_c)) # LL (corpus | new grammar)
         i+=1
-    
+
+    print (fsa2string(ops_fsas[-1]))
     return corpora,bigram_chains,ops_fsas
 
 
 
-def em(corpus,bigrams,fsm,n,start='S',end='F'):
+def em(corpus,bigrams,fsm,n,start='S',end='F',verbose=False):
     """
     wrapper parses corpus and then iterates expectation maximisation n times
 
@@ -400,11 +437,11 @@ def em(corpus,bigrams,fsm,n,start='S',end='F'):
     parsed_corpus = parse_corpus(corpus,bigrams,fsm,start)
     print ("Running EM %i times"%n)
     # run EM n times
-    return em_main(parsed_corpus,bigrams,fsm,n,start,end)
+    return em_main(parsed_corpus,bigrams,fsm,n,start,end,verbose)
 
 
 
-def em_train(train,test,bigram,fsm,start='S',end='F'):
+def em_train(train,test,bigram,fsm,n,start='S',end='F'):
     """
     Runs EM once, since that seems to be all we need, on training corpus
      and reports the log likelihoods of the training and testing corpora
@@ -423,7 +460,7 @@ def em_train(train,test,bigram,fsm,start='S',end='F'):
     """
 
     # train
-    new_corpora,new_bigrams,new_fsm = em(train,bigrams,fsm,1,start,end)
+    new_corpora,new_bigrams,new_fsm = em(train,bigrams,fsm,n,start,end)
     print ("LL training corpus: %.2f"%p_corpus(new_corpora[1]))
     # parse the test corpus with the trained grammar
     parsed_test = parse_corpus(test,new_bigrams[1],new_fsm[1])
@@ -432,7 +469,7 @@ def em_train(train,test,bigram,fsm,start='S',end='F'):
     return ll
         
 
-def compare(train,test,bigrams,fsm_copy,fsm_no_copy,start='S',end='F',verbose=False):
+def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,start='S',end='F',verbose=False):
     """
     Trains two different FSAs and the same bigrams, but seperately, on the training corpus.
     Tests on the test corpus
@@ -456,19 +493,19 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,start='S',end='F',verbose=Fa
     
     print ("\nCopy")
     # train copy grammar
-    new_corpora_copy,new_bigrams_copy,new_fsm_copy = em(train,bigrams,fsm_copy,1,start,end)
-    print ("Copy LL training corpus: %.2f"%p_corpus(new_corpora_copy[1]))
+    new_corpora_copy,new_bigrams_copy,new_fsm_copy = em(train,bigrams,fsm_copy,n,start,end)
+    print ("Copy LL training corpus: %.2f"%p_corpus(new_corpora_copy[-1]))
     #parse the test corpus with the trained grammar
-    parsed_test_copy = parse_corpus(test,new_bigrams_copy[1],new_fsm_copy[1])
+    parsed_test_copy = parse_corpus(test,new_bigrams_copy[-1],new_fsm_copy[-1])
     ll_copy = p_corpus(parsed_test_copy) # log likelihood (test | grammar)
     print ("Copy LL test corpus: %.2f"%ll_copy)
     
     print ("\nNo Copy")
     # train no-copy grammar
-    new_corpora_no_copy,new_bigrams_no_copy,new_fsm_no_copy = em(train,bigrams,fsm_no_copy,1,start,end)
-    print ("No Copy LL training corpus: %.2f"%p_corpus(new_corpora_no_copy[1]))
+    new_corpora_no_copy,new_bigrams_no_copy,new_fsm_no_copy = em(train,bigrams,fsm_no_copy,n,start,end)
+    print ("No Copy LL training corpus: %.2f"%p_corpus(new_corpora_no_copy[-1]))
     #parse the test corpus with the trained grammar
-    parsed_test_no_copy = parse_corpus(test,new_bigrams_no_copy[1],new_fsm_no_copy[1])
+    parsed_test_no_copy = parse_corpus(test,new_bigrams_no_copy[-1],new_fsm_no_copy[-1])
     ll_no_copy = p_corpus(parsed_test_no_copy) # log likelihood (test | grammar)
     print ("No Copy LL test corpus: %.2f"%ll_no_copy)
 
@@ -483,8 +520,9 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,start='S',end='F',verbose=Fa
     
     return ll_copy,ll_no_copy
      
+windows(corpus,bigrams,ops,bi_ops,3,3)
 
-def windows(corpus,bigrams,fsm_copy,fsm_no_copy,windows,start='S',end='F'):
+def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,start='S',end='F'):
     """
     divides the corpus into "windows" windows;
     for each window, trains on that window and tests on the remainder
@@ -506,17 +544,19 @@ def windows(corpus,bigrams,fsm_copy,fsm_no_copy,windows,start='S',end='F'):
     for_copy = [] # a place to store results in favour of the copy grammar
     for_no_copy=[] # a place to store results in favour of the no-copy grammar
     size=len(corpus)
-    window_size = size/windows # divide up the corpus into windows this size
+    window_size = size//windows # divide up the corpus into windows this size
     i=0
     while i<windows:
         print ("\nWindow %i of %i"%(i+1,windows))
         #training corpus is one window
-        train=corpus[i*window_size:i*window_size+window_size]
+        print (i*window_size)
+        print (i*window_size+window_size)
+        train=corpus[(i*window_size):(i*window_size+window_size)]
         # testing corpus is the other windows together
         test=corpus[:i*window_size]+corpus[i*window_size+window_size:]
 
         # train the grammars and compare the log likelihoods of the test corpus
-        (ll_copy,ll_no_copy)=compare(train,test,bigrams,fsm_copy,fsm_no_copy,start,end)
+        (ll_copy,ll_no_copy)=compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,start,end)
         # add the result to the right list of results
         if ll_copy>ll_no_copy:
             for_copy.append((ll_copy,ll_no_copy,ll_copy-ll_no_copy))
@@ -529,7 +569,7 @@ def windows(corpus,bigrams,fsm_copy,fsm_no_copy,windows,start='S',end='F'):
 
 
 
-def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,max_windows,start='S',end='F'):
+def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,start='S',end='F'):
     """
     Divides the corpus into 2 windows, then 3, up to max_windows, and runs windows on it
 
@@ -552,7 +592,7 @@ def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,max_windows,start='S',end='
     tots = []
     while i<=max_windows:
         # train and test on i windows
-        tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,i,start='S',end='F'))
+        tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,i,start='S',end='F'))
         i+=1
     # print a summary of the results
     for w,(for_copy,for_no_copy) in enumerate(tots):

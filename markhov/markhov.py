@@ -183,7 +183,16 @@ def parse2pic(parse,fname,ftype):
     return
 
 
+def fsa2string(fsa):
+    s=""
+    for lhs in fsa:
+        s+="\n\n%s"%lhs
+        for rhs in fsa[lhs]:
+            s+="\n   %s"%rhs
+            for e in fsa[lhs][rhs]:
+                s+="\n      %s\t%.2f"%(e,fsa[lhs][rhs][e])
 
+    return s
 
 ##### choosing the move #######
 
