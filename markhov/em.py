@@ -120,7 +120,7 @@ def uni_counts(bis):
 
 def scs(route):
     """
-    gets the number of occurances of all states in route (Q,E)
+    gets the number of occurences of all states in route (Q,E)
 
     Arguments
     route : pair (states, emissions) of a route through the operations FSA
@@ -129,6 +129,8 @@ def scs(route):
     dict of q:count
 
     """
+    ## TODO Meaghan: maybe not necessary; this function goes through the list of states multiple times
+    ## whereas it can do it in one go.
     ss={}
     (qs,es)=route
     for state in qs:
@@ -136,6 +138,17 @@ def scs(route):
             sc=state_count(route,state)
             ss[state]=sc
     return ss
+
+
+
+def scs(qs):
+    """ Gets the number of occurrences of each state in qs """
+    ss={}
+    for q in qs:
+        ss[q]=ss.get(q,0)+1
+    return ss
+    
+
 
 
 def tcs(route):
@@ -148,6 +161,8 @@ def tcs(route):
     Returns
     dict of (transition): count
     """
+    ## TODO Meaghan: maybe not necessary; this function goes through the list of states multiple times
+    ## whereas it can do it in one go.
     (qs,es)=route
     ts={}
     for i in range(1,len(qs)):
@@ -205,13 +220,12 @@ def p_corpus(parsed_corpus):
     return sum([p for (s,parses,p) in parsed_corpus])
 
 
-def sum_p_corpus(parsed_corpus):
-    return  log_sum([p for (s,parses,p) in parsed_corpus])
 
 
 
 
-def update_automata(corpus,bigrams,fsa,verbose=False):
+
+def update_automata_oldmeaghan(corpus,bigrams,fsa,verbose=False):
     """
     updates the bigram chain and operations fsa
     
@@ -228,12 +242,19 @@ def update_automata(corpus,bigrams,fsa,verbose=False):
 
     """
 
+    ## TODO: can fsa just be the rules themselves, not their probabilities? i.e. a dict the same as fsa except for the very last level.
+
+    ## TODO: this is really two separate functions that don't need each other's stuff
+
     #TODO smoothing for unused rules
-    new_fsa = copy.deepcopy(fsa) #copy the ops FSA
-    for lhs in new_fsa: # go through the FSA
+    #new_fsa = copy.deepcopy(fsa) #copy the ops FSA
+    new_fsa = {}
+    for lhs in fsa: # go through the FSA
         if verbose: print (lhs)
+        new_fsa[lhs]={}
         for rhs in new_fsa[lhs]:
             #print (rhs)
+            new_fsa[lhs][rhs]={}
             for e in new_fsa[lhs][rhs]:
                 #print (e)
                 #print (lhs,e,rhs)
@@ -243,22 +264,17 @@ def update_automata(corpus,bigrams,fsa,verbose=False):
                 for (s,parses,p_s) in corpus: # go through parsed corpus
                     #print (s)
                     # add up all the TCs/SCs for the parses of this sentence
-                    for (bis,route,p,sc,tc,bc,uc) in parses:
+                    for (_,_,p,sc,tc,_,_) in parses:
                         #print (tc)
                         #print (sc)
                         if (lhs,e,rhs) in tc: # if this parse has this rule
-                            # add in counts, times p(parse)
+                            # add in counts, times p(parse)/p(sent)
                             tot_tc=log_add(tot_tc, p-p_s + log(tc[(lhs,e,rhs)]))
                             #print ("tot_tc: %f"%tot_tc)
                         if lhs in sc:
                             tot_sc=log_add(tot_sc, p-p_s + log(sc[lhs]))
                             #print ("tot_sc: %f"%tot_sc)
 
-                        # when you've got all the parses for this sentence processed, 
-                        #divide by the prob of the sentence 
-                        #and add the result into the new prob for the rule
-                        #new_prob = log_add(new_prob, new_p_this_s)#-p_s)
-                        #print (lhs,e,rhs,new_prob)
                 # when you're through the corpus, update prob for this rule
 
                 if verbose: print (" new prob for %s %s %s: %f - %f = %f"%(lhs,e,rhs,tot_tc,tot_sc,tot_tc-tot_sc))
@@ -327,6 +343,151 @@ def check_bis(bigrams):
                 print (a)
                 ok=False
     return ok
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+def expected_counts(corpus,parse_probs,fsa,trans_probs_struct,verbose=False):
+    """
+    Compute the expected counts for state visits and transition visits.
+    """
+    ## TODO: can fsa just be the rules themselves, not their probabilities? i.e. a dict the same as fsa except for the very last level.
+
+    #TODO smoothing for unused rules
+    #new_fsa = copy.deepcopy(fsa) #copy the ops FSA
+    
+    #
+    # First, let's build the state counts scs
+    #
+    esc = {}
+    for lhs in fsa: 
+        esc[lhs]={}
+        #for (s,parses,_) in corpus: # go through parsed corpus
+        #    for (_,_,p,sc,_,_,_) in parses:
+        for (s,_,_,(sc,tc),(uc,bc)),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
+            esc[lhs][s]=esc[lhs].get(s,0)+ p_rel*sc.get(lhs,0))
+
+    #
+    # Second, let's build the transition counts
+    #
+    etc = {}
+    for lhs in fsa:
+        etc[lhs]={}
+        for rhs in new_fsa[lhs]:
+            etc[lhs][rhs]={}
+            for e in new_fsa[lhs][rhs]:
+                for (s,parse,p_rel): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
+                    etc[lhs][rhs][e][s]=etc[lhs][rhs][e][s].get(s,0)+ p_rel*tc.get((lhs,e,rhs),0)
+
+    return (esc,etc)
+
+
+
+
+
+
+def update_rabbit_fsa(scs,tcs):
+
+    new_fsa = {}
+    for lhs in fsa: # go through the FSA
+        new_fsa[lhs]={}
+        for rhs in fsa[lhs]:
+            new_fsa[lhs][rhs]={}
+            for e in new_fsa[lhs][rhs]:
+                new_fsa[lhs][rhs][e]= sum(tcs[lhs][rhs][e].values())/sum(scs[lhs].values())
+                ## new_fsa[lhs][rhs][e]=0.-log(n_rhs) # 1/n_rhs for this state
+                
+    return new_fsa
+
+
+
+
+
+
+
+
+
+def get_p_sentences(corpus,fsa,bigrams):
+    """
+    Given a parsed corpus of "bare parses", i.e. parses that only contain the route taken
+    and the state and transition counts, and given a current probability assignment 
+    we compute the relative probability of each parse (i.e. the probability of the parse
+    given the sentence).
+
+    Specifically, we return a list of probabilities (not-logged) that contains, in order,
+    the relative probabilities of the particular parse.
+
+    Arguments
+    corpus : pairs of (sentence,parse) where sentence occurs multiple times (there a better way to say this)
+    fsa : a rule assignment to the operations FSA
+    bigrams : a rule assignment to the bigrams FSA
+    """
+    
+    # Given a parsed corpus, compute the probabilities of all the parses
+    parse_ps = []
+    
+    # Keeps a running count of the probability of each sentence
+    p_s = {}
+
+    # Compute the probabilities of each parse
+    for (s,(bis,route,_,_)) in corpus:
+
+        # Compute the probability of this parse
+        p = p_parse((bis,route),fsa,bigrams)
+
+        # Update the running total of the sentence probabilities
+        p_s[s] = log_add(p_s.get(s,log0),p)
+
+        # Add the parse probability of this sentence
+        parse_ps.append(p)
+
+    return [ exp(p-p_s[s]) for ((s,_),p) in zip(corpus,parse_ps) ]
+
+
+
+
+
+
+def em_rabbit_main():
+    
+    # Let's do one iteration of EM
+
+    history = []
+    
+    corpus # pre-parsed corpus (but no probabilities assigned)
+    
+    fsa,bigrams # initialise them somehow
+
+    for iteration in range(N_ITERATIONS):
+
+        # compute the parse probabilities
+        parse_ps = get_p_sentences(corpus,fsa,bigrams)
+
+        # compute the expected state and transition counts
+        scs,tcs = expected_counts(corpus,parse_ps,fsa_struct)
+
+        # compute the updated rule probabilities
+        fsa         = update_rabbit_fsa       (scs,tcs)
+        trans_probs = update_rabbit_transprobs(corpus,parse_ps,fsa_struct,...)
+
+        history.append( {"fsa":fsa,
+                         "scs":scs,
+                         "tcs":tcs,
+                         "trans_probs":trans_probs,
+                         "":parse_ps})
+    
+
+
 
 
 

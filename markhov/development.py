@@ -349,3 +349,8 @@ def change_p_parse(parse,bigrams,fsa,start='S',end='F'):
     return(bis,route,p_parse(parse,bigrams,fsa,start,end))
 
     
+
+
+def sum_p_corpus(parsed_corpus):
+    return  log_sum([p for (s,parses,p) in parsed_corpus])
+
