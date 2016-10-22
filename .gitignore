@@ -6,6 +6,9 @@
 parse_*.pdf
 parse_*.png
 
+ops*.csv
+trans*.csv
+
 ops.pdf
 ops.png
 ops.ps
