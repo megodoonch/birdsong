@@ -8,6 +8,8 @@ import random
 
 a="a"
 
+aaa = ['a','a a','a a a']
+
 ops = {'S':{'NotCL':['mg']}, # from start we have to merge
        'NotCL':{'NotCL':['mg','copy'], # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
                'CLEAR_S':['clear'], # go here to clear the buffer
@@ -21,6 +23,12 @@ ops = {'S':{'NotCL':['mg']}, # from start we have to merge
    }
 
 
+trans = {'a':['a','b'],
+           'b':['b','a'],
+           '[':['a','b']
+       }
+
+    
 # bigrams = {'a':{']':0.25,'a':0.25,'b':0.5},
 #            'b':{']':0.25,'b':0.25,'a':0.5},
 #            '':{'a':0.5,'b':0.5}
@@ -40,10 +48,6 @@ def bis_log(bigrams):
     return bigrams
 
 
-trans = {'a':['a','b'],
-           'b':['b','a'],
-           '[':['a','b']
-       }
 
 
 trans_probs = {'a':{'a':0.5,'b':0.5},

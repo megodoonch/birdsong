@@ -245,7 +245,7 @@ def get_p_parses(corpus,fsa,bigrams):
 
     
 
-def expected_counts(corpus,parse_probs,fsa_struct,trans):
+def expected_counts_fsa(corpus,parse_probs,fsa_struct):
     """
     Compute the expected counts for state visits and transition visits.
 
@@ -282,6 +282,40 @@ def expected_counts(corpus,parse_probs,fsa_struct,trans):
     return (expect_sc,expect_tc)
 
 
+def expected_counts_trans(corpus,parse_probs,trans):
+    """
+    Compute the expected counts for state visits and transition visits.
+
+    Returns
+    two dicts of expected counts in the structure of the FSA
+    BC: Each bigram is paired with a dict where the keys are the sentences and the values are the expected counts of that bigram for that sentence
+    UC: Each unigram is paired with a dict where the keys are the sentences and the values are the expected counts of that unigram for that sentence
+    """
+
+    #TODO smoothing for unused rules
+    
+    #
+    # First, let's build the unigram counts
+    #
+    expect_uc = {}
+    for a in trans: 
+        expect_uc[a]={}
+        for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
+            expect_uc[a][s]=expect_uc[a].get(s,0)+ p_rel*parse['uc'].get(a,0)
+
+    #
+    # Second, let's build the bigram counts
+    #
+    expect_bc = {}
+    for a in trans:
+        expect_bc[a]={}
+        for b in trans[a]:
+            expect_bc[a][b]={}
+            for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
+                expect_bc[a][b][s]=expect_bc[a][b].get(s,0)+ p_rel*parse['tc'].get((a,b),0)
+
+    return (expect_uc,expect_bc)
+
 
 
 ############## MAXIMISATION: UPDATE THE GRAMMAR #############
@@ -309,6 +343,29 @@ def update_rabbit_fsa(expect_sc,expect_tc,fsa):
                     
     return new_fsa
 
+
+
+def update_rabbit_trans(expect_uc,expect_bc,trans):
+    """
+    given the expected counts, update the FSA
+    """
+
+    # using the structure of the original FSA, 
+    # we make new rule probabilities based on the expected counts we calculated
+    new_trans = {}
+    for a in trans: # go through the FSA
+        new_trans[a]={}
+        for b in trans[a]:
+            new_trans[a][b]={}
+            # we make a new prob for this rule based on the ratio of expected counts to the total expected counts for this LHS
+            # this will only work if we visited this LHS at all.
+            if len(expect_uc[a])>0: 
+                new_trans[a][b]= log(sum(expect_bc[a][b].values())/sum(expect_uc[a].values()))
+            else: # otherwise we divide the probability up evenly. (We could also do it randomly.)
+                n_rhs = len(trans[a])
+                new_trans[a][b]=log(1./n_rhs) # 1/n_rhs for this state
+                    
+    return new_trans
 
 
 
@@ -404,22 +461,25 @@ def em_rabbit(corpus,trans,fsa_struct,start='S'):
 
         # EXPECTATION
         # compute the parse probabilities
-        parse_ps = get_p_sentences(corpus,fsa,trans_probs)
+        parse_ps = get_p_parses(corpus,fsa,trans_probs)
 
         # compute the expected state and transition counts given our current prob distribution
-        scs,tcs =  expected_counts(corpus,parse_ps,fsa_struct)
+        scs,tcs =  expected_counts_fsa(corpus,parse_ps,fsa_struct)
+        ucs,bcs =  expected_counts_trans(corpus,parse_ps,trans)
 
+        
         # MAXIMISATION
         # compute the updated rule probabilities
-        fsa         = update_rabbit_fsa       (scs,tcs)
-        trans_probs = update_rabbit_transprobs(corpus,parse_ps,fsa_struct,...)
+        fsa         = update_rabbit_fsa   (scs,tcs,fsa_struct)
+        trans_probs = update_rabbit_trans (ucs,bcs,trans)
 
         history.append( {"fsa":fsa,
                          "scs":scs,
                          "tcs":tcs,
                          "trans_probs":trans_probs,
                          "":parse_ps})
-    
+
+    return history
 
 
 
