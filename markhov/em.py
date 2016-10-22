@@ -319,16 +319,71 @@ def update_rabbit_fsa(expect_sc,expect_tc,fsa):
 ############# EM #################
 
 def initialise_fsa(fsa):
-    # initialise probs
-    #TODO
-    pass
+    """
+    initialise probs to random values
+
+    Arguments
+    fsa : the operations FSA (dict)
+
+    Returns
+    the operations FSA with random probabilties added, summing to 1 for each LHS
+    log-transformed
+
+    """
+    # we make a new FSA with probabilities
+    fsa_probs = {}
+    for lhs in fsa: #go through the FSA
+        fsa_probs[lhs]={}
+        #get the number of rules with this LHS
+        n= sum(len(rhs) for rhs in ops[lhs].itervalues())
+        #generate a list of random numbers, one for each rule
+        probs=[random.random() for i in range(n)]
+        # we need these to range from [0,1] so we sum them and divide all by the sum
+        tot=sum(probs)
+        probs = [p/tot for p in probs]
+        #Now we add them to the rules
+        for rhs in fsa[lhs]:
+            fsa_probs[lhs][rhs]={}                        
+            for e in fsa[lhs][rhs]:
+                #OCaml it up
+                #pop the stack and use the top member as the rule prob for lhs,e,rhs
+                fsa_probs[lhs][rhs][e]=np.log(probs[0])
+                probs=probs[1:]
+    return fsa_probs
 
 
 def initialise_trans(trans):
-    # initialise probs
-    #TODO    
-    pass
+    """
+    initialise probs to random values
 
+    Arguments
+    trans : the bigram transitions (dict)
+
+    Returns
+    the bigram transitions with random probabilties added, summing to 1 for each LHS
+    log-transformed
+
+    """
+ 
+    # we make a new FSA with probabilities
+    trans_probs = {}
+    for a in trans: #go through the transitions
+        trans_probs[a]={}
+        #get the number of transitions from this state
+        n= len(trans[a])
+        #generate a list of random numbers, one for each rule
+        probs=[random.random() for i in range(n)]
+        # we need these to range from [0,1] so we sum them and divide all by the sum
+        tot=sum(probs)
+        probs = [p/tot for p in probs]
+        #Now we add them to the rules
+        for i,b in enumerate(trans[a]):
+            trans_probs[a][b]=np.log(probs[i])
+                                  
+    return trans_probs
+
+
+    
 # set the number of iterations
 N_ITERATIONS = 1
 
