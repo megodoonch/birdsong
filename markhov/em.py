@@ -105,6 +105,31 @@ def check_bis(bigrams):
     return ok
 
 
+############# PRINTERS ###############
+
+def parsed_corpus2string(corp):
+    c=""
+    for i,(s,parse) in enumerate(corp):
+        c+='\nParse %i:\n'%i
+        c+='Sentence: %s\n'%s
+        c+='bigrams: %s\n'%' '.join(parse['bis'])
+        c+='Q: %s\n'%' '.join(parse['rt'][0])
+        c+='E: %s\n'%' '.join(parse['rt'][1])
+        c+='SC:\n'
+        for x in parse['sc']:
+            c+='  %s %i\n'%(x,parse['sc'][x])
+        c+='TC:\n'
+        for x in parse['tc']:
+            c+='  %s %i\n'%(' '.join(x),parse['tc'][x])
+        c+='UC:\n'
+        for x in parse['uc']:
+            c+='  %s %i\n'%(x,parse['uc'][x])
+        c+='BC:\n'
+        for x in parse['bc']:
+            c+='  %s %i\n'%(' '.join(x),parse['bc'][x])
+
+    return c
+
 
 
 ################# EXPECTED COUNTS ######################
@@ -183,14 +208,13 @@ def parse_corpus(corpus,bigrams,fsa,start='S'):
     """
     sents = []
     for s in corpus:
-        print (s)
         parses = markhov.parse(s,bigrams,fsa,start) # parse the sentence
         parses = markhov.clean_parses(parses) # just keep (bis,route)
         for (big,(qs,es)) in parses:
             t_counts=tcs((qs,es)) # calculate transition counts
             s_counts=scs(qs) # calculate state counts
             bigram_counts = bi_counts(big)
-            unigrams = scs(big)
+            unigrams = scs(big[:-1])
             sents.append((s,
                           {'bis':big,'rt':(qs,es),
                            'tc':t_counts, 'sc':s_counts,
@@ -225,8 +249,6 @@ def get_p_parses(corpus,fsa,bigrams):
 
     # Compute the probabilities of each parse
     for (s,parse) in corpus:
-        print (s)
-        print (parse)
         # Compute the probability of this parse
         p = markhov.p_parse((parse['bis'],parse['rt']),bigrams,fsa)
 
@@ -312,7 +334,7 @@ def expected_counts_trans(corpus,parse_probs,trans):
         for b in trans[a]:
             expect_bc[a][b]={}
             for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
-                expect_bc[a][b][s]=expect_bc[a][b].get(s,0)+ p_rel*parse['tc'].get((a,b),0)
+                expect_bc[a][b][s]=expect_bc[a][b].get(s,0)+ p_rel*parse['bc'].get((a,b),0)
 
     return (expect_uc,expect_bc)
 
@@ -335,7 +357,7 @@ def update_rabbit_fsa(expect_sc,expect_tc,fsa):
             for e in fsa[lhs][rhs]:
                 # we make a new prob for this rule based on the ratio of expected counts to the total expected counts for this LHS
                 # this will only work if we visited this LHS at all.
-                if len(expect_sc[lhs])>0: 
+                if len(expect_sc[lhs])>0 and sum(expect_sc[lhs].values())>0: 
                     new_fsa[lhs][rhs][e]= log(sum(expect_tc[lhs][rhs][e].values())/sum(expect_sc[lhs].values()))
                 else: # otherwise we divide the probability up evenly. (We could also do it randomly.)
                     n_rhs = len(fsa[lhs])
@@ -359,7 +381,7 @@ def update_rabbit_trans(expect_uc,expect_bc,trans):
             new_trans[a][b]={}
             # we make a new prob for this rule based on the ratio of expected counts to the total expected counts for this LHS
             # this will only work if we visited this LHS at all.
-            if len(expect_uc[a])>0: 
+            if len(expect_uc[a])>0 and sum(expect_uc[a].values())>0: 
                 new_trans[a][b]= log(sum(expect_bc[a][b].values())/sum(expect_uc[a].values()))
             else: # otherwise we divide the probability up evenly. (We could also do it randomly.)
                 n_rhs = len(trans[a])
@@ -444,7 +466,7 @@ def initialise_trans(trans):
 # set the number of iterations
 N_ITERATIONS = 1
 
-def em_rabbit(corpus,trans,fsa_struct,start='S'):
+def em_rabbit(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
     
     # Let's do one iteration of EM
 
@@ -457,7 +479,7 @@ def em_rabbit(corpus,trans,fsa_struct,start='S'):
 
     history = [{'fsa':fsa,'trans_probs':trans_probs}]
 
-    for iteration in range(N_ITERATIONS):
+    for iteration in range(n):
 
         # EXPECTATION
         # compute the parse probabilities
@@ -476,8 +498,10 @@ def em_rabbit(corpus,trans,fsa_struct,start='S'):
         history.append( {"fsa":fsa,
                          "scs":scs,
                          "tcs":tcs,
+                         'ucs':ucs,
+                         'bcs':bcs,
                          "trans_probs":trans_probs,
-                         "":parse_ps})
+                         "parse_ps":parse_ps})
 
     return history
 

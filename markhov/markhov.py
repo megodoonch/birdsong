@@ -185,14 +185,33 @@ def parse2pic(parse,fname,ftype):
     return
 
 
-def fsa2string(fsa):
+def fsa2string(fsa,log=True):
     s=""
     for lhs in fsa:
         s+="\n\n%s"%lhs
         for rhs in fsa[lhs]:
             s+="\n   %s"%rhs
             for e in fsa[lhs][rhs]:
-                s+="\n      %s\t%.2f"%(e,fsa[lhs][rhs][e])
+                if log:
+                    p=fsa[lhs][rhs][e]
+                else:
+                    p=np.exp(fsa[lhs][rhs][e])
+                
+                s+="\n      %s\t%.2f"%(e,p)
+
+    return s
+
+def trans2string(fsa,log=True):
+    s=""
+    for lhs in fsa:
+        s+="\n\n%s"%lhs
+        for rhs in fsa[lhs]:
+            if log:
+                p=fsa[lhs][rhs]
+            else:
+                p=np.exp(fsa[lhs][rhs])
+                
+            s+="\n  %s\t%.2f"%(rhs,p)
 
     return s
 
@@ -667,6 +686,9 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
     return p_route(route,fsa,start,end)+p_bigrams(bis,bigrams)
 
 
+def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
+    just_parses = [(parse['bis'],parse['rt']) for (_,parse) in parsed_corpus]
+    return sum([p_parse(parse,trans_probs,fsa) for parse in just_parses])
 
 # def p_sent(parses,bigrams,fsa,start='S',end='F'):
 #     """returns the probability of all parses of one sentence
