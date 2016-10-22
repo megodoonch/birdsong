@@ -9,6 +9,8 @@ corpus = f.readlines()
 f.close()
 corpus = [line.rstrip('\n') for line in corpus]
 
+
+
 bis = {'[':{}}
 for s in corpus:
     s=['[']+s.split(' ')

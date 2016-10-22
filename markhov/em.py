@@ -495,6 +495,9 @@ def em_rabbit(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
         fsa         = update_rabbit_fsa   (scs,tcs,fsa_struct)
         trans_probs = update_rabbit_trans (ucs,bcs,trans)
 
+        assert check_fsa(fsa), "New FSA isn't valid"
+        assert check_bis(trans_probs), "New Trans Probs isn't valid"
+
         history.append( {"fsa":fsa,
                          "scs":scs,
                          "tcs":tcs,
@@ -505,31 +508,6 @@ def em_rabbit(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
 
     return history
 
-
-
-
-def em(corpus,bigrams,fsm,n,start='S',end='F',verbose=False):
-    """
-    wrapper parses corpus and then iterates expectation maximisation n times
-
-    Arguments
-    corpus  : list of strings
-    bigrams : bigram morkhov chain (dict)
-    fsm     : operations FSA (dict)
-    n       : number of times to run EM
-    start   : start state in ops
-    end     : final state in ops
-
-    returns
-    updated bigrams, updated fsm
-
-    """
-    # parse the corpus and store the result
-    print ("Parsing corpus...")
-    parsed_corpus = parse_corpus(corpus,bigrams,fsm,start)
-    print ("Running EM %i times"%n)
-    # run EM n times
-    return em_main(parsed_corpus,bigrams,fsm,n,start,end,verbose)
 
 
 
