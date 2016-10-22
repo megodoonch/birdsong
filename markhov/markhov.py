@@ -687,8 +687,19 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
 
 
 def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
-    just_parses = [(parse['bis'],parse['rt']) for (_,parse) in parsed_corpus]
-    return sum([p_parse(parse,trans_probs,fsa) for parse in just_parses])
+    just_parses = [(s,(parse['bis'],parse['rt'])) for (s,parse) in parsed_corpus]
+    lls={}
+    for (s,parse) in just_parses:
+        lls[s]=lls.get(s,log0)
+        lls[s]= log_add(lls[s],p_parse(parse,trans_probs,fsa))
+    ll=0.
+    for s in lls:
+        ll+=lls[s]
+
+    return ll
+
+
+
 
 # def p_sent(parses,bigrams,fsa,start='S',end='F'):
 #     """returns the probability of all parses of one sentence
