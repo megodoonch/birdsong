@@ -686,18 +686,6 @@ def p_parse(parse,bigrams,fsa,start='S',end='F'):
     return p_route(route,fsa,start,end)+p_bigrams(bis,bigrams)
 
 
-def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
-    just_parses = [(s,(parse['bis'],parse['rt'])) for (s,parse) in parsed_corpus]
-    lls={}
-    for (s,parse) in just_parses:
-        lls[s]=lls.get(s,log0)
-        lls[s]= log_add(lls[s],p_parse(parse,trans_probs,fsa))
-    ll=0.
-    for s in lls:
-        ll+=lls[s]
-
-    return ll
-
 
 
 

@@ -196,9 +196,11 @@ def parse_corpus(corpus,bigrams,fsa,start='S'):
     fsa     : operations FSA (dict)
 
     Returns
-    a parsed corpus of triples (s,parses,prob)
-       where parses is a list of dicts:
-    {bis (bigrams used),
+    a parsed corpus of pairs (i,parse)
+       where i is the index of the sentence in the corpus
+       and parse is a dict:
+    {s (the string itself),
+    bis (bigrams used),
     rt (route),
     tc (trans counts), 
     sc (state counts),
@@ -207,7 +209,7 @@ def parse_corpus(corpus,bigrams,fsa,start='S'):
 
     """
     sents = []
-    for s in corpus:
+    for i,s in enumerate(corpus):
         parses = markhov.parse(s,bigrams,fsa,start) # parse the sentence
         parses = markhov.clean_parses(parses) # just keep (bis,route)
         for (big,(qs,es)) in parses:
@@ -215,8 +217,8 @@ def parse_corpus(corpus,bigrams,fsa,start='S'):
             s_counts=scs(qs) # calculate state counts
             bigram_counts = bi_counts(big)
             unigrams = scs(big[:-1])
-            sents.append((s,
-                          {'bis':big,'rt':(qs,es),
+            sents.append((i,
+                          {'s':s,'bis':big,'rt':(qs,es),
                            'tc':t_counts, 'sc':s_counts,
                            'bc':bigram_counts, 'uc':unigrams}))
     return sents
@@ -238,7 +240,7 @@ def get_p_parses(corpus,fsa,bigrams):
     bigrams : a rule assignment to the bigrams FSA
 
     Returns
-    list of (not log-transformed) relative probabilites of parses 
+    list of (not log-transformed) relative probabilites of parses
     """
     
     # Given a parsed corpus, compute the probabilities of all the parses
@@ -263,6 +265,44 @@ def get_p_parses(corpus,fsa,bigrams):
     return [ np.exp(p-p_s[s]) for ((s,_),p) in zip(corpus,parse_ps) ]
 
 
+
+def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
+    """
+    Calculate the log likelihood of the corpus given the grammar
+
+    Arguments
+    parsed_corpus : output of parse_corpus. List of (i,parse) pairs where
+                    i is the index of the sentence in the corpus and
+                    parse is a dict including
+                    bis (bigrams used): a list of strings
+                    rt (route taken): a pair of lists of strings (Q,E)
+    trans_probs   : the transitional probabilties (dict)
+    fsa           : the operations FSA (dict)
+    start         : the start category for the FSA
+    end           : the end category for the FSA
+
+    Returns
+    log likelihood of the corpus given the grammar (float)
+                    
+    """
+    # get the part of the parses we actually need
+    just_parses = [(s,(parse['bis'],parse['rt'])) for (s,parse) in parsed_corpus]
+    # we make a dict of sentences and their lls.
+    # We need to add (log-sum) their parse probabilties to get the sentence probabilities
+    # and then multiply (add) all their probabilities together
+    # to get the total probability of the corpus.
+    lls={}
+    # this here is why the parsed_corpus is by index, not corpus string:
+    # we don't want to add together the probabilities of all the instances of the same sentence.
+    for (s,parse) in just_parses:
+        lls[s]=lls.get(s,log0)
+        lls[s]= log_add(lls[s],p_parse(parse,trans_probs,fsa))
+    # multiply (add in log-space) the likelihoods of all the sentences
+    ll=0.
+    for s in lls:
+        ll+=lls[s]
+
+    return ll
 
 
     
