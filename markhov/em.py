@@ -296,7 +296,7 @@ def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
     # we don't want to add together the probabilities of all the instances of the same sentence.
     for (s,parse) in just_parses:
         lls[s]=lls.get(s,log0)
-        lls[s]= log_add(lls[s],p_parse(parse,trans_probs,fsa))
+        lls[s]= log_add(lls[s],markhov.p_parse(parse,trans_probs,fsa))
     # multiply (add in log-space) the likelihoods of all the sentences
     ll=0.
     for s in lls:
