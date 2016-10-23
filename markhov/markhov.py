@@ -95,6 +95,14 @@ def log_sum(fs):
 
 
 
+def fsa_log(fsa):
+    for a in fsa:
+        for b in fsa[a]:
+            fsa[a][b]=np.log(fsa[a][b])
+    return fsa
+
+
+
 ##### PRINT #####
 
 def parse2string(parse):
@@ -190,202 +198,188 @@ def fsa2string(fsa,log=True):
     for lhs in fsa:
         s+="\n\n%s"%lhs
         for rhs in fsa[lhs]:
-            s+="\n   %s"%rhs
-            for e in fsa[lhs][rhs]:
-                if log:
-                    p=fsa[lhs][rhs][e]
-                else:
-                    p=np.exp(fsa[lhs][rhs][e])
-                
-                s+="\n      %s\t%.2f"%(e,p)
-
-    return s
-
-def trans2string(fsa,log=True):
-    s=""
-    for lhs in fsa:
-        s+="\n\n%s"%lhs
-        for rhs in fsa[lhs]:
             if log:
                 p=fsa[lhs][rhs]
             else:
                 p=np.exp(fsa[lhs][rhs])
-                
-            s+="\n  %s\t%.2f"%(rhs,p)
-
+ 
+            s+="\n  %s\t%.2f"%(' '.join(rhs),p)
+               
     return s
 
 
 
 
-########### GENERATE A SENTENCE ##############
+# ########### GENERATE A SENTENCE ##############
 
-##### choosing the move #######
+# this won't work yet with new gramamr structure
 
-def next_step(current,chain):
-    """
-    Chooses next step based on probabilities in chain
-    Returns step and its prob
-    Arguments:
-    current : current state in markhov chain
-    chain   : Markhov chain
-    """
-    p=np.log(random.random()) # random prob for deciding next move
-    #print(p)
-    if current in chain:
-        nexts = chain[current]
-    else:
-        return
+# ##### choosing the move #######
+
+# def next_step(current,chain):
+#     """
+#     Chooses next step based on probabilities in chain
+#     Returns step and its prob
+#     Arguments:
+#     current : current state in markhov chain
+#     chain   : Markhov chain
+#     """
+#     p=np.log(random.random()) # random prob for deciding next move
+#     #print(p)
+#     if current in chain:
+#         nexts = chain[current]
+#     else:
+#         return
         
-    current_p = log0 # set the floor to 0
-    for o in nexts.keys():
-        prob=nexts[o] # get next prob
-        #print("%s: (%f,%f)"%(o, current_p,prob+current_p))
-        if p>=current_p and p < log_add(prob,current_p): # if the random prob falls between the last prob and this one, we've found our result
-            return o
-        else:
-            current_p=log_add(prob,current_p) # if not, set the floor for the next interval to check
-    print ("no transition")
-    return
+#     current_p = log0 # set the floor to 0
+#     for o in nexts.keys():
+#         prob=nexts[o] # get next prob
+#         #print("%s: (%f,%f)"%(o, current_p,prob+current_p))
+#         if p>=current_p and p < log_add(prob,current_p): # if the random prob falls between the last prob and this one, we've found our result
+#             return o
+#         else:
+#             current_p=log_add(prob,current_p) # if not, set the floor for the next interval to check
+#     print ("no transition")
+#     return
             
 
 
 
-def step(state,ops):
-    """
-    Chooses a next state in ops PFSM based on probabilities in machine
-    """
-    p=np.log(random.random()) # random prob for deciding next move
-    # we'll look for an interval in the probs of out-arrows in which p falls. 
-    current_p=log0 # this is the bottom of the first interval
-    nexts=ops[state] # possible next states
+# def step(state,ops):
+#     """
+#     Chooses a next state in ops PFSM based on probabilities in machine
+#     """
+#     p=np.log(random.random()) # random prob for deciding next move
+#     # we'll look for an interval in the probs of out-arrows in which p falls. 
+#     current_p=log0 # this is the bottom of the first interval
+#     nexts=ops[state] # possible next states
 
-    for st in nexts:
-        #print(st)
-        for op in nexts[st]:
-            #print (op)
-            p_next=nexts[st][op] # the prob of this arrow
-            #print (p_next)
-            #print ("is %0.5f < %0.5f < %0.5f?"%(current_p,p,p_next))
-            if p>=current_p and p < log_add(p_next,current_p): # if the random prob falls between the last prob and this one, we've found our result
-                #print (st,op,p)
-                return (st,op,p_next) # this is it!
-            else:
-                current_p=log_add(p_next,current_p) #otherwise, move bottom of interval up
-
-
-
-def generate_ops(ops):
-    """
-    Generates a string of operation based on ops PFSM
-    """
-    state='S'
-    out=[]
-    p=0.
-    next_step=step(state,ops)
-    while next_step!=None:
-        out.append(next_step[1])
-        p=p+next_step[2]
-        next_step=step(next_step[0],ops)
-    return out,p
+#     for st in nexts:
+#         #print(st)
+#         for op in nexts[st]:
+#             #print (op)
+#             p_next=nexts[st][op] # the prob of this arrow
+#             #print (p_next)
+#             #print ("is %0.5f < %0.5f < %0.5f?"%(current_p,p,p_next))
+#             if p>=current_p and p < log_add(p_next,current_p): # if the random prob falls between the last prob and this one, we've found our result
+#                 #print (st,op,p)
+#                 return (st,op,p_next) # this is it!
+#             else:
+#                 current_p=log_add(p_next,current_p) #otherwise, move bottom of interval up
 
 
-def generate_string(op_string,bigrams):
-    """Generates string based on operation string and bigrams markhov chain"""
-    s=["["] # we need a start string to calculate transitional probs for starting
-    b=[]
-    for op in op_string:
-        if op=='mg':
-            next_word=next_step(s[-1],bigrams)
-            if next_word==None:
-                print ("no transition")
-                return
-            s.append(next_word)
-            b.append(next_word)
-        elif op=='copy':
-            s+=b
-            b+=b
-        elif op=='clear':
-            b=[]
-        elif op=='end':
-            print (' '.join(s))
-            return s
-        else: 
-            print("bad operation name")
 
-def generate_string_ends(op_string,bigrams):
-    """Generates string based on operation string and bigrams markhov chain.
-    Requires end markers in the bigrams
-     and requires that the ops end exactly when the bigrams do"""
-    s=["["] # we need a start string to calculate transitional probs for starting
-    b=[]
-    #print (op_string)
-    #print (s)
-    for op in op_string:
-        #print (op)
-        #print (s)
-        if s[-1]==']':
-            if op=='end':
-                print (' '.join(s))
-                return s
-            else:
-                print ("end marker before end operation")
-                return
-        if op=='mg':
-            next_word=next_step(s[-1],bigrams)
-            if next_word==None:
-                print ("no transition")
-                return
+# def generate_ops(ops):
+#     """
+#     Generates a string of operation based on ops PFSM
+#     """
+#     state='S'
+#     out=[]
+#     p=0.
+#     next_step=step(state,ops)
+#     while next_step!=None:
+#         out.append(next_step[1])
+#         p=p+next_step[2]
+#         next_step=step(next_step[0],ops)
+#     return out,p
 
-            s.append(next_word)
-            b.append(next_word)
-        elif op=='copy':
-            s+=b
-            b+=b
-        elif op=='clear':
-            b=[]
-        elif op=='end':
-            if s[-1]==']':
-                print  (' '.join(s))
-                return s
-            else:
-                print("end operation before end marker")
-                return
-        else: 
-            print("bad operation name")
-            return
+
+# def generate_string(op_string,bigrams):
+#     """Generates string based on operation string and bigrams markhov chain"""
+#     s=["["] # we need a start string to calculate transitional probs for starting
+#     b=[]
+#     for op in op_string:
+#         if op=='mg':
+#             next_word=next_step(s[-1],bigrams)
+#             if next_word==None:
+#                 print ("no transition")
+#                 return
+#             s.append(next_word)
+#             b.append(next_word)
+#         elif op=='copy':
+#             s+=b
+#             b+=b
+#         elif op=='clear':
+#             b=[]
+#         elif op=='end':
+#             print (' '.join(s))
+#             return s
+#         else: 
+#             print("bad operation name")
+
+# def generate_string_ends(op_string,bigrams):
+#     """Generates string based on operation string and bigrams markhov chain.
+#     Requires end markers in the bigrams
+#      and requires that the ops end exactly when the bigrams do"""
+#     s=["["] # we need a start string to calculate transitional probs for starting
+#     b=[]
+#     #print (op_string)
+#     #print (s)
+#     for op in op_string:
+#         #print (op)
+#         #print (s)
+#         if s[-1]==']':
+#             if op=='end':
+#                 print (' '.join(s))
+#                 return s
+#             else:
+#                 print ("end marker before end operation")
+#                 return
+#         if op=='mg':
+#             next_word=next_step(s[-1],bigrams)
+#             if next_word==None:
+#                 print ("no transition")
+#                 return
+
+#             s.append(next_word)
+#             b.append(next_word)
+#         elif op=='copy':
+#             s+=b
+#             b+=b
+#         elif op=='clear':
+#             b=[]
+#         elif op=='end':
+#             if s[-1]==']':
+#                 print  (' '.join(s))
+#                 return s
+#             else:
+#                 print("end operation before end marker")
+#                 return
+#         else: 
+#             print("bad operation name")
+#             return
 
 
             
-##wrappers
-def gen(bigrams,ops):
-    return generate_string(generate_ops(ops)[0],bigrams)
+# ##wrappers
+# def gen(bigrams,ops):
+#     return generate_string(generate_ops(ops)[0],bigrams)
 
-def gen_ends(bigrams_ends,ops):
-    return generate_string_ends(generate_ops(ops)[0],bigrams_ends)
-
-
-def gen_corpus(bigrams,ops,n):
-    """
-    generates a corpus without end markers in the bigrams
-    """
-    i=0
-    corpus=[]
-    while i<n:
-        corpus.append(gen(bigrams,ops))
-    return corpus
+# def gen_ends(bigrams_ends,ops):
+#     return generate_string_ends(generate_ops(ops)[0],bigrams_ends)
 
 
-def gen_corpus_ends(bigrams,ops,n):
-    """
-    generates a corpus with end markers in the bigrams
-    """
-    corpus=[]
-    while len(corpus)<n:
-        s = gen_ends(bigrams,ops)
-        if s!=None:
-            corpus.append(s)
-    return corpus
+# def gen_corpus(bigrams,ops,n):
+#     """
+#     generates a corpus without end markers in the bigrams
+#     """
+#     i=0
+#     corpus=[]
+#     while i<n:
+#         corpus.append(gen(bigrams,ops))
+#     return corpus
+
+
+# def gen_corpus_ends(bigrams,ops,n):
+#     """
+#     generates a corpus with end markers in the bigrams
+#     """
+#     corpus=[]
+#     while len(corpus)<n:
+#         s = gen_ends(bigrams,ops)
+#         if s!=None:
+#             corpus.append(s)
+#     return corpus
 
 
 
@@ -394,37 +388,24 @@ def gen_corpus_ends(bigrams,ops,n):
 ######### PARSE ###########
 
 
-def check_edge(e,q,fsm):
-    """
-    checks whether the current state q has an out-edge e. If so returns the state it goes to and the probability; otherwise returns None
-    
-    Arguments
-    e   : we're checking to see if there's an edge with this label
-    q   : the current state
-    fsm : the fsm
-
-    Returns 
-    (q2,p): the destination and probability of the edge
-
-    """
-    possible_states=fsm[q]
-    for s in possible_states:
-        #print (s)
-        if e in possible_states[s]:
-            return (s,possible_states[s][e])
-    
 
 def possible_transitions(q,fsm):
+    """
+    finds all possible transitions out of state q of an fsm
+
+    Arguements
+    q   : state (string)
+    fsm : dict { lhs : rhss}
+
+    Returns
+    list of possible transitions
+    
+    """
     ts=[]
     possible_states=fsm[q]
     for s in possible_states:
-        #print (possible_states[s])
-        for e in possible_states[s]:
-            ts.append((s,e))
+        ts.append(s)
     return ts
-
-
-
 
 
 
@@ -658,7 +639,7 @@ def p_route(route,fsa,start='S',end='F'):
 
     p=0. # initialise total (log) prob
     for i in range(1,len(qs)):
-        p+=fsa[qs[i-1]][qs[i]][es[i-1]]
+        p+=fsa[qs[i-1]][(qs[i],es[i-1])]
 
     return p
 

@@ -81,28 +81,13 @@ def check_fsa(fsa):
     for lhs in fsa:
         if len(fsa[lhs])>0:
             tot=log0
-            for rhs in fsa[lhs]:
-                for e in fsa[lhs][rhs]:
-                    tot=log_add(tot,fsa[lhs][rhs][e])
+            for tr in fsa[lhs]:
+                tot=log_add(tot,fsa[lhs][tr])
             if not np.isclose(tot,0.):
                 print (lhs)
                 ok=False
     return ok
 
-def check_bis(bigrams):
-    """
-    Check if the bigram FSA is valid: if its probabilities for one LHS sum to 1
-    """
-    ok=True
-    for a in bigrams:
-        if len(bigrams[a])>0:
-            tot=log0
-            for b in bigrams[a]:
-                tot=log_add(tot,bigrams[a][b])
-            if not np.isclose(tot,0.):
-                print (a)
-                ok=False
-    return ok
 
 
 ############# PRINTERS ###############
@@ -119,8 +104,8 @@ def parsed_corpus2string(corp):
         for x in parse['sc']:
             c+='  %s %i\n'%(x,parse['sc'][x])
         c+='TC:\n'
-        for x in parse['tc']:
-            c+='  %s %i\n'%(' '.join(x),parse['tc'][x])
+        for (lhs,(rhs,e)) in parse['tc']:
+            c+='  %s %s %s %i\n'%(lhs,e,rhs,parse['tc'][(lhs,(rhs,e))])
         c+='UC:\n'
         for x in parse['uc']:
             c+='  %s %i\n'%(x,parse['uc'][x])
@@ -180,7 +165,7 @@ def tcs(route):
     ts={}
     for i in range(1,len(qs)):
         q1,e,q2=qs[i-1],es[i-1],qs[i]
-        ts[(q1,e,q2)]=ts.get((q1,e,q2),0)+1
+        ts[(q1,(q2,e))]=ts.get((q1,(q2,e)),0)+1
     return ts
 
 
@@ -307,9 +292,15 @@ def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
 
     
 
-def expected_counts_fsa(corpus,parse_probs,fsa_struct):
+def expected_state_counts(corpus,parse_probs,fsa,count):
     """
-    Compute the expected counts for state visits and transition visits.
+    Compute the expected counts of whatever we ask for
+
+    Arguments
+    corpus
+    
+
+    count : the thing to count: uc, sc
 
     Returns
     two dicts of expected counts in the structure of the FSA
@@ -317,72 +308,48 @@ def expected_counts_fsa(corpus,parse_probs,fsa_struct):
     SC: Each state is paired with a dict where the keys are the sentences and the values are the expected counts of that state for that sentence
     """
 
-    #TODO smoothing for unused rules
-    
-    #
-    # First, let's build the state counts scs
-    #
-    expect_sc = {}
-    for lhs in fsa_struct: 
-        expect_sc[lhs]={}
+    expect = {}
+    for lhs in fsa: 
+        expect[lhs]={}
         for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
-            expect_sc[lhs][s]=expect_sc[lhs].get(s,0)+ p_rel*parse['sc'].get(lhs,0)
-
-    #
-    # Second, let's build the transition counts
-    #
-    expect_tc = {}
-    for lhs in fsa_struct:
-        expect_tc[lhs]={}
-        for rhs in fsa_struct[lhs]:
-            expect_tc[lhs][rhs]={}
-            for e in fsa_struct[lhs][rhs]:
-                expect_tc[lhs][rhs][e]={}
-                for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
-                    expect_tc[lhs][rhs][e][s]=expect_tc[lhs][rhs][e].get(s,0)+ p_rel*parse['tc'].get((lhs,e,rhs),0)
-
-    return (expect_sc,expect_tc)
+            expect[lhs][s]=expect[lhs].get(s,0)+ p_rel*parse[count].get(lhs,0)
 
 
-def expected_counts_trans(corpus,parse_probs,trans):
+    return expect
+
+
+def expected_transition_counts(corpus,parse_probs,fsa,count):
     """
-    Compute the expected counts for state visits and transition visits.
+    Compute the expected counts of whatever we ask for
+
+    Arguments
+    corpus
+    
+
+    count : the thing to count: bc, tc
 
     Returns
     two dicts of expected counts in the structure of the FSA
-    BC: Each bigram is paired with a dict where the keys are the sentences and the values are the expected counts of that bigram for that sentence
-    UC: Each unigram is paired with a dict where the keys are the sentences and the values are the expected counts of that unigram for that sentence
+    TC: Each rule is paired with a dict where the keys are the sentences and the values are the expected counts of that rule for that sentence
+    SC: Each state is paired with a dict where the keys are the sentences and the values are the expected counts of that state for that sentence
     """
 
-    #TODO smoothing for unused rules
-    
-    #
-    # First, let's build the unigram counts
-    #
-    expect_uc = {}
-    for a in trans: 
-        expect_uc[a]={}
-        for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
-            expect_uc[a][s]=expect_uc[a].get(s,0)+ p_rel*parse['uc'].get(a,0)
-
-    #
-    # Second, let's build the bigram counts
-    #
-    expect_bc = {}
-    for a in trans:
-        expect_bc[a]={}
-        for b in trans[a]:
-            expect_bc[a][b]={}
+    expect = {}
+    for lhs in fsa: 
+        expect[lhs]={}
+        for rhs in fsa[lhs]:
+            expect[lhs][rhs]={}
             for (s,parse),p_rel in zip(corpus,parse_probs): # p_rel is the relative probability, i.e. the parse probability given the sentence and not log-transformed
-                expect_bc[a][b][s]=expect_bc[a][b].get(s,0)+ p_rel*parse['bc'].get((a,b),0)
+                expect[lhs][rhs][s]=expect[lhs][rhs].get(s,0)+ p_rel*parse[count].get((lhs,rhs),0)
 
-    return (expect_uc,expect_bc)
+
+    return expect
 
 
 
 ############## MAXIMISATION: UPDATE THE GRAMMAR #############
 
-def update_rabbit_fsa(expect_sc,expect_tc,fsa):
+def update(expect_sc,expect_tc,fsa):
     """
     given the expected counts, update the FSA
     """
@@ -392,86 +359,26 @@ def update_rabbit_fsa(expect_sc,expect_tc,fsa):
     new_fsa = {}
     for lhs in fsa: # go through the FSA
         new_fsa[lhs]={}
-        for rhs in fsa[lhs]:
-            new_fsa[lhs][rhs]={}
-            for e in fsa[lhs][rhs]:
+        for tr in fsa[lhs]:
+            new_fsa[lhs][tr]={}
                 # we make a new prob for this rule based on the ratio of expected counts to the total expected counts for this LHS
                 # this will only work if we visited this LHS at all.
-                if len(expect_sc[lhs])>0 and sum(expect_sc[lhs].values())>0: 
-                    new_fsa[lhs][rhs][e]= log(sum(expect_tc[lhs][rhs][e].values())/sum(expect_sc[lhs].values()))
-                else: # otherwise we divide the probability up evenly. (We could also do it randomly.)
-                    n_rhs = len(fsa[lhs])
-                    new_fsa[lhs][rhs][e]=log(1./n_rhs) # 1/n_rhs for this state
+            if sum(expect_sc[lhs].values())>0: 
+                new_fsa[lhs][tr]= log(sum(expect_tc[lhs][tr].values())/sum(expect_sc[lhs].values()))
+            else: # otherwise we divide the probability up evenly. (We could also do it randomly.)
+                n_rhs = len(fsa[lhs])
+                new_fsa[lhs][tr]=log(1./n_rhs) # 1/n_rhs for this state
                     
     return new_fsa
-
-
-
-def update_rabbit_trans(expect_uc,expect_bc,trans):
-    """
-    given the expected counts, update the FSA
-    """
-
-    # using the structure of the original FSA, 
-    # we make new rule probabilities based on the expected counts we calculated
-    new_trans = {}
-    for a in trans: # go through the FSA
-        new_trans[a]={}
-        for b in trans[a]:
-            new_trans[a][b]={}
-            # we make a new prob for this rule based on the ratio of expected counts to the total expected counts for this LHS
-            # this will only work if we visited this LHS at all.
-            if len(expect_uc[a])>0 and sum(expect_uc[a].values())>0: 
-                new_trans[a][b]= log(sum(expect_bc[a][b].values())/sum(expect_uc[a].values()))
-            else: # otherwise we divide the probability up evenly. (We could also do it randomly.)
-                n_rhs = len(trans[a])
-                new_trans[a][b]=log(1./n_rhs) # 1/n_rhs for this state
-                    
-    return new_trans
-
-
-
 
 
 
 
 ############# EM #################
 
-def initialise_fsa(fsa):
-    """
-    initialise probs to random values
-
-    Arguments
-    fsa : the operations FSA (dict)
-
-    Returns
-    the operations FSA with random probabilties added, summing to 1 for each LHS
-    log-transformed
-
-    """
-    # we make a new FSA with probabilities
-    fsa_probs = {}
-    for lhs in fsa: #go through the FSA
-        fsa_probs[lhs]={}
-        #get the number of rules with this LHS
-        n= sum(len(rhs) for rhs in ops[lhs].itervalues())
-        #generate a list of random numbers, one for each rule
-        probs=[random.random() for i in range(n)]
-        # we need these to range from [0,1] so we sum them and divide all by the sum
-        tot=sum(probs)
-        probs = [p/tot for p in probs]
-        #Now we add them to the rules
-        for rhs in fsa[lhs]:
-            fsa_probs[lhs][rhs]={}                        
-            for e in fsa[lhs][rhs]:
-                #OCaml it up
-                #pop the stack and use the top member as the rule prob for lhs,e,rhs
-                fsa_probs[lhs][rhs][e]=np.log(probs[0])
-                probs=probs[1:]
-    return fsa_probs
 
 
-def initialise_trans(trans):
+def initialise(fsa):
     """
     initialise probs to random values
 
@@ -485,28 +392,28 @@ def initialise_trans(trans):
     """
  
     # we make a new FSA with probabilities
-    trans_probs = {}
-    for a in trans: #go through the transitions
-        trans_probs[a]={}
+    fsa_probs = {}
+    for a in fsa: #go through the transitions
+        fsa_probs[a]={}
         #get the number of transitions from this state
-        n= len(trans[a])
+        n= len(fsa[a])
         #generate a list of random numbers, one for each rule
         probs=[random.random() for i in range(n)]
         # we need these to range from [0,1] so we sum them and divide all by the sum
         tot=sum(probs)
         probs = [p/tot for p in probs]
         #Now we add them to the rules
-        for i,b in enumerate(trans[a]):
-            trans_probs[a][b]=np.log(probs[i])
+        for i,b in enumerate(fsa[a]):
+            fsa_probs[a][b]=np.log(probs[i])
                                   
-    return trans_probs
+    return fsa_probs
 
 
     
 # set the number of iterations
 N_ITERATIONS = 1
 
-def em_rabbit(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
+def em(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
     
     # Let's do one iteration of EM
 
@@ -514,8 +421,8 @@ def em_rabbit(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
     corpus=parse_corpus(corpus,trans,fsa_struct,start='S') 
         
     # starting FSA and bigram transitional probabilities
-    fsa = initialise_fsa(fsa_struct)
-    trans_probs = initialise_trans(trans)
+    fsa = initialise(fsa_struct)
+    trans_probs = initialise(trans)
 
     history = [{'fsa':fsa,'trans_probs':trans_probs}]
 
@@ -526,17 +433,19 @@ def em_rabbit(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
         parse_ps = get_p_parses(corpus,fsa,trans_probs)
 
         # compute the expected state and transition counts given our current prob distribution
-        scs,tcs =  expected_counts_fsa(corpus,parse_ps,fsa_struct)
-        ucs,bcs =  expected_counts_trans(corpus,parse_ps,trans)
+        scs = expected_state_counts(corpus,parse_ps,fsa_struct,'sc')
+        tcs = expected_transition_counts(corpus,parse_ps,fsa_struct,'tc')
+        ucs = expected_state_counts(corpus,parse_ps,trans,'uc')
+        bcs = expected_transition_counts(corpus,parse_ps,trans,'bc')
 
         
         # MAXIMISATION
         # compute the updated rule probabilities
-        fsa         = update_rabbit_fsa   (scs,tcs,fsa_struct)
-        trans_probs = update_rabbit_trans (ucs,bcs,trans)
+        fsa         = update(scs,tcs,fsa_struct)
+        trans_probs = update(ucs,bcs,trans)
 
         assert check_fsa(fsa), "New FSA isn't valid"
-        assert check_bis(trans_probs), "New Trans Probs isn't valid"
+        assert check_fsa(trans_probs), "New Trans Probs isn't valid"
 
         history.append( {"fsa":fsa,
                          "scs":scs,

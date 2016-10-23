@@ -451,3 +451,23 @@ def update_automata_oldmeaghan(corpus,bigrams,fsa,verbose=False):
             
     return new_bis,new_fsa
 
+
+def check_edge(e,q,fsm):
+    """
+    checks whether the current state q has an out-edge e. If so returns the state it goes to and the probability; otherwise returns None
+    
+    Arguments
+    e   : we're checking to see if there's an edge with this label
+    q   : the current state
+    fsm : the fsm
+
+    Returns 
+    (q2,p): the destination and probability of the edge
+
+    """
+    possible_states=fsm[q]
+    for s in possible_states:
+        #print (s)
+        if e in possible_states[s]:
+            return (s,possible_states[s][e])
+    

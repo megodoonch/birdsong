@@ -23,6 +23,19 @@ ops = {'S':{'NotCL':['mg']}, # from start we have to merge
    }
 
 
+ops = {'S':[('NotCL','mg')], # from start we have to merge
+       'NotCL':[('NotCL','mg'),('NotCL','copy'), # this state is the state in which the last "special" operation was *not* Clear. Either we've done none or the last was copy. From here we can do everything including end
+               ('CLEAR_S','clear'), # go here to clear the buffer
+               ('F','end') # go here to end
+           ],
+       'CLEAR_S':[('CLEAR','mg')], # this is where we've just cleared. Buffer is empty so you can only Merge
+       'CLEAR':[('CLEAR','mg'), # the last special op was Clear so we can Copy or Merge.
+                ('NotCL','copy') # if we Copy, the last special op was Copy so go to NotCL
+            ],
+       'F':[] #final state
+   }
+
+
 trans = {'a':['a','b'],
            'b':['b','a'],
            '[':['a','b']
