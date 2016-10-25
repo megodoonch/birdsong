@@ -290,7 +290,6 @@ def ll_corpus(parsed_corpus,trans_probs,fsa,start='S',end='F'):
     return ll
 
 
-    
 
 def expected_state_counts(corpus,parse_probs,fsa,count):
     """
@@ -376,6 +375,38 @@ def update(expect_sc,expect_tc,fsa):
 
 ############# EM #################
 
+def smooth(fsa,sc):
+    """
+    Smooths FSA probabilities so that no rules have probability 0.
+
+    Specifically, we reduce the probabilities of the rules by the given (sc) amount of probability
+    and then distribute it over all rules.
+
+    Arguments
+    fsa : a probabilistic finite state machine (dict)
+    sc  : smoothing contant (float), not log-transformed
+
+    """
+    new_fsa={}
+    one_minus_sc=log(1-sc)
+    for lhs in fsa:
+        new_fsa[lhs]={}
+        # each rule set has a probability sum of 1.
+        # we divide the existing probabilities by the smoothing contant
+        # then we add an equal portion of it to all the rules
+        if len(fsa[lhs])>0: # only do this for non-final states
+            sc_part = log(sc/len(fsa[lhs])) # we add this to all the rules
+            for rhs in fsa[lhs]:
+                p=fsa[lhs][rhs]
+                if p>log0: # the ones that actually have probability have their probability multiplied by (1-sc)
+                    new_fsa[lhs][rhs]=log_add(p+one_minus_sc,sc_part) # we're in log space so we add
+                else:  # the ones with no probability just get their new probability added
+                    new_fsa[lhs][rhs]=log_add(p,sc_part) 
+    assert check_fsa(new_fsa) , "smoothing produced a bad PFSA"
+    return new_fsa
+
+    
+
 
 
 def initialise(fsa):
@@ -413,8 +444,13 @@ def initialise(fsa):
 # set the number of iterations
 N_ITERATIONS = 1
 
-def em(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
+def em(corpus,trans,fsa_struct,n=N_ITERATIONS,sc=0.,elaborate=True,start='S',end='F'):
     
+    """
+    sc is initialised to 0 here so we can smooth only at the end if we want
+
+    """
+
     # Let's do one iteration of EM
 
     # pre-parsed corpus (but no probabilities assigned)
@@ -424,7 +460,14 @@ def em(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
     fsa = initialise(fsa_struct)
     trans_probs = initialise(trans)
 
-    history = [{'fsa':fsa,'trans_probs':trans_probs}]
+    # store the results as we go
+    history = []
+    # the pre-training stuff
+    iter_0 = {'fsa':fsa,'trans_probs':trans_probs}
+    if elaborate:
+        iter_0['train_ll']=ll_corpus(corpus,trans_probs,fsa,start,end)
+
+    history.append(iter_0)
 
     for iteration in range(n):
 
@@ -441,26 +484,34 @@ def em(corpus,trans,fsa_struct,n=N_ITERATIONS,start='S'):
         
         # MAXIMISATION
         # compute the updated rule probabilities
-        fsa         = update(scs,tcs,fsa_struct)
-        trans_probs = update(ucs,bcs,trans)
+        fsa         = smooth(update(scs,tcs,fsa_struct),sc)
+        trans_probs = smooth(update(ucs,bcs,trans),sc)
 
         assert check_fsa(fsa), "New FSA isn't valid"
         assert check_fsa(trans_probs), "New Trans Probs isn't valid"
 
-        history.append( {"fsa":fsa,
-                         "scs":scs,
-                         "tcs":tcs,
-                         'ucs':ucs,
-                         'bcs':bcs,
-                         "trans_probs":trans_probs,
-                         "parse_ps":parse_ps})
+        result = {"fsa":fsa,
+                  "scs":scs,
+                  "tcs":tcs,
+                  'ucs':ucs,
+                  'bcs':bcs,
+                  "trans_probs":trans_probs,
+                  "parse_ps":parse_ps}
+        
+        if elaborate:
+            # add the LL of the corpus we just trained on
+            result['train_ll']=ll_corpus(corpus,trans_probs,fsa,start,end)           
 
-    return history
+        history.append(result)
+
+
+    return history,corpus
 
 
 
+SC=0.01
 
-def em_train(train,test,bigram,fsm,n,start='S',end='F'):
+def em_train(train,test,trans,fsm,n=N_ITERATIONS,presmooth=True,sc=SC,elaborate=True,start='S',end='F'):
     """
     Runs EM once, since that seems to be all we need, on training corpus
      and reports the log likelihoods of the training and testing corpora
@@ -477,18 +528,53 @@ def em_train(train,test,bigram,fsm,n,start='S',end='F'):
     log likelihood of the test corpus
 
     """
+    if presmooth:
+        em_sc=sc
+    else:
+        em_sc=0.
 
     # train
-    new_corpora,new_bigrams,new_fsm = em(train,bigrams,fsm,n,start,end)
-    print ("LL training corpus: %.2f"%p_corpus(new_corpora[1]))
+    history,train=em(train,trans,fsm,n,em_sc,elaborate,start)
+    # extract values from last training cycle
+    new_parse_ps = history[-1]['parse_ps']
+    new_fsa = history[-1]['fsa']
+    new_trans = history[-1]['trans_probs']
+    
+    #smooth if nec
+    if not presmooth:
+        new_trans=smooth(new_trans,sc)
+        new_fsa=smooth(new_fsa,sc)
+
+    # calculate ll train with smoothing
+    ll_train = ll_corpus(train,new_trans,new_fsa,start,end)
+    print ("LL training corpus: %.2f"%ll_train)
+    
     # parse the test corpus with the trained grammar
-    parsed_test = parse_corpus(test,new_bigrams[1],new_fsm[1])
-    ll = p_corpus(parsed_test)
-    print ("LL test corpus: %.2f"%ll)
-    return ll
+    parsed_test = parse_corpus(test,new_trans,new_fsa)
+    # calculate ll test with smoothing    
+    ll_test = ll_corpus(parsed_test,new_trans,new_fsa,start,end)
+    print ("LL testing corpus: %.2f"%ll_test)
+
+    # add in all lls (smoothed)
+    for i in range(len(history)):
+        ll=ll_corpus(parsed_test,history[i]['trans_probs'],history[i]['fsa'],start,end)
+        history[i]['test_ll']=ll
+
+    # add the smoothed version to the history
+    if not presmooth:
+        smoothed={}
+        for key in history[-1]:
+            smoothed[key]=history[-1][key]
+        smoothed['fsa']=new_fsa
+        smoothed['trans_probs']=new_trans
+        smoothed['test_ll']=ll_test
+        smoothed['train_ll']=ll_train
+        history.append(smoothed)    
+
+    return ll_test,train,parsed_test,history
         
 
-def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,start='S',end='F',verbose=False):
+def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=True,sc=SC,start='S',end='F',verbose=False):
     """
     Trains two different FSAs and the same bigrams, but seperately, on the training corpus.
     Tests on the test corpus
@@ -509,23 +595,16 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,start='S',end='F',verbose=
      log likelihood of test corpus given the no-copy grammar)
     """
 
-    
+
     print ("\nCopy")
     # train copy grammar
-    new_corpora_copy,new_bigrams_copy,new_fsm_copy = em(train,bigrams,fsm_copy,n,start,end)
-    print ("Copy LL training corpus: %.2f"%p_corpus(new_corpora_copy[-1]))
-    #parse the test corpus with the trained grammar
-    parsed_test_copy = parse_corpus(test,new_bigrams_copy[-1],new_fsm_copy[-1])
-    ll_copy = p_corpus(parsed_test_copy) # log likelihood (test | grammar)
+    ll_copy,parsed_train,parsed_test,history_copy = em_train(train,test,bigrams,fsm_copy,n,presmooth,sc,start,end)
     print ("Copy LL test corpus: %.2f"%ll_copy)
-    
+
     print ("\nNo Copy")
-    # train no-copy grammar
-    new_corpora_no_copy,new_bigrams_no_copy,new_fsm_no_copy = em(train,bigrams,fsm_no_copy,n,start,end)
-    print ("No Copy LL training corpus: %.2f"%p_corpus(new_corpora_no_copy[-1]))
-    #parse the test corpus with the trained grammar
-    parsed_test_no_copy = parse_corpus(test,new_bigrams_no_copy[-1],new_fsm_no_copy[-1])
-    ll_no_copy = p_corpus(parsed_test_no_copy) # log likelihood (test | grammar)
+    # train no copy grammar
+    # we only need to EM once
+    ll_no_copy,parsed_train,parsed_test,history_no_copy = em_train(train,test,bigrams,fsm_no_copy,2,presmooth,sc,start,end)
     print ("No Copy LL test corpus: %.2f"%ll_no_copy)
 
     # print the difference    
@@ -537,10 +616,10 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,start='S',end='F',verbose=
     diff = np.abs(diff)
     print ("Difference: %.2f = e^%.3f ~ %f\n"%(diff,diff,np.exp(diff)))
     
-    return ll_copy,ll_no_copy
+    return (ll_copy,history_copy),(ll_no_copy,history_no_copy)
      
 
-def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,start='S',end='F'):
+def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,presmooth=True,sc=SC,start='S',end='F'):
     """
     divides the corpus into "windows" windows;
     for each window, trains on that window and tests on the remainder
@@ -574,12 +653,12 @@ def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,start='S',end='F'):
         test=corpus[:i*window_size]+corpus[i*window_size+window_size:]
 
         # train the grammars and compare the log likelihoods of the test corpus
-        (ll_copy,ll_no_copy)=compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,start,end)
+        (ll_copy,history_copy),(ll_no_copy,history_no_copy)=compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,presmooth,sc,start,end)
         # add the result to the right list of results
         if ll_copy>ll_no_copy:
-            for_copy.append((ll_copy,ll_no_copy,ll_copy-ll_no_copy))
+            for_copy.append(((ll_copy,history_copy),(ll_no_copy,history_no_copy),ll_copy-ll_no_copy))
         else:
-            for_no_copy.append((ll_copy,ll_no_copy,ll_no_copy-ll_copy))
+            for_no_copy.append(((ll_copy,history_copy),(ll_no_copy,history_no_copy),ll_no_copy-ll_copy))
         i+=1
 
     print ("\n %i for copy, %i for no copy"%(len(for_copy),len(for_no_copy)))
@@ -587,7 +666,7 @@ def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,start='S',end='F'):
 
 
 
-def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,start='S',end='F'):
+def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=True,sc=SC,start='S',end='F'):
     """
     Divides the corpus into 2 windows, then 3, up to max_windows, and runs windows on it
 
@@ -610,7 +689,7 @@ def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,start='S',end
     tots = []
     while i<=max_windows:
         # train and test on i windows
-        tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,i,start='S',end='F'))
+        tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,i,presmooth,sc,start='S',end='F'))
         i+=1
     # print a summary of the results
     for w,(for_copy,for_no_copy) in enumerate(tots):
