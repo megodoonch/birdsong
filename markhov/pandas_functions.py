@@ -44,6 +44,98 @@ def trans_probs_table(history,trans):
     return pd.DataFrame(tab)
 
 
+def rule2columns(rule,lhs,rhs,history,grammar,automaton,w,run,begin=None,end=None):
+    """
+    Given a rule and a bunch of info about run, windows, grammar, etc, 
+    builds a dict for a dataframe for the rule
+    Dataframe includes how rule probability changed during training, 
+    for each run of Windows
+    for each training window
+
+    
+
+    """
+
+    if begin==None:
+        begin=0
+    if end==None:
+        end=len(history)
+
+    rule_set=[]
+    
+    for i in range(begin,end):
+        this_rule={' rule':rule}    
+        if i < len(history):
+            p=history[i][automaton][lhs][rhs]
+        else: 
+            p=history[begin-1][automaton][lhs][rhs]
+        this_rule["prob"]=p
+        this_rule['run']=run
+        this_rule['training window']=w
+        this_rule['iteration']=i
+        this_rule['grammar']=grammar
+        if automaton == 'fsa':
+            this_rule['automaton']='operations'
+        elif automaton == 'trans_probs':
+            this_rule['automaton']='transitions'
+        rule_set.append(this_rule)
+
+    return rule_set
+
+
+
+
+def rule_probs_table(windows,trans,ops_c,ops_nc,fill=False):
+    """
+    Makes a dataframe of the results of running Windows, potentially multiple times
+    
+    Arguments
+    window : list of list of pairs ((ll_copy,history_copy),(ll_no_copy,history_no_copy))
+    
+    Returns
+    
+    """
+    c_rules=rules2triples(ops_c)
+    nc_rules=rules2triples(ops_nc)
+    bigrams=trans2pairs(trans)
+    tab=[]
+    # for each complete run of windows (re-initialised)
+    for run,window in enumerate(windows):
+        #print (run)
+        #for each window:
+        for w,((_,history_copy),(_,history_no_copy)) in enumerate(window):
+
+            # operations FSAs
+
+            # copy grammar
+            for rule,(lhs,rhs,e) in c_rules:
+
+                thisrule=rule2columns(rule,lhs,(rhs,e),history_copy,'copy','fsa',w,run)
+                tab+=thisrule
+
+            # no copy grammar
+            nc=len(history_no_copy)
+            for rule,(lhs,rhs,e) in nc_rules:
+                thisrule=rule2columns(rule,lhs,(rhs,e),history_no_copy,'no copy','fsa',w,run)
+                tab+=thisrule
+
+                if fill:
+                    for i in range (nc,len(history_copy)):
+                        thisrule=rule2columns(rule,lhs,(rhs,e),history_no_copy,'no copy','fsa',w,run,nc,len(history_copy))
+                        tab+=thisrule
+
+            # transitional probabilities
+            for rule,(lhs,rhs) in bigrams:
+                # copy grammar
+                thisrule=rule2columns(rule,lhs,rhs,history_copy,'copy','trans_probs',w,run)
+                tab+=thisrule
+                # no copy grammar
+                thisrule=rule2columns(rule,lhs,rhs,history_no_copy,'no copy','trans_probs',w,run)
+                tab+=thisrule
+                
+    for i in range(len(tab)):
+        assert type(tab[i])==dict, "element %i had type %s"%(i,type(tab[i]))
+    return pd.DataFrame(tab)
 
 
 
@@ -98,10 +190,71 @@ def ll_table(history):
     """
     tab=[]
     for i in range(len(history)):
-        this_parse={}
-        this_parse['iteration']=i
-        this_parse['train LL']=history[i]['train_ll']
-        this_parse['test LL']=history[i]['test_ll']
-        tab.append(this_parse)
+        this_iter={}
+        this_iter['iteration']=i
+        this_iter['train LL']=history[i]['train_ll']
+        this_iter['test LL']=history[i]['test_ll']
+        tab.append(this_iter)
 
     return pd.DataFrame(tab)
+
+
+
+def ll_window(windows,fill=False):
+    """
+    Makes a dataframe of the results of running Windows, potentially multiple times
+    
+    Arguments
+    window : list of list of pairs ((ll_copy,history_copy),(ll_no_copy,history_no_copy))
+    
+    Returns
+    
+    """
+    tab=[]
+    # for each complete run of windows (re-initialised)
+    for run,window in enumerate(windows):
+        #print (run)
+        #for each window:
+        for w,((_,history_copy),(_,history_no_copy)) in enumerate(window):
+            #print (w)
+            # copy grammar
+            #print ('copy')
+            for i in range(len(history_copy)):
+                #print (i)
+                # for each iteration of EM
+                this_iter={}
+                this_iter['run']=run
+                this_iter['training window']=w
+                this_iter['iteration']=i
+                this_iter['grammar']='copy'
+                this_iter['train LL']=history_copy[i]['train_ll']
+                this_iter['test LL']=history_copy[i]['test_ll']
+                tab.append(this_iter)
+            # no copy grammar
+            nc=len(history_no_copy)
+            for i in range(nc):
+                # for each iteration of EM
+                this_iter={}
+                this_iter['run']=run
+                this_iter['training window']=w
+                this_iter['iteration']=i
+                this_iter['grammar']='no copy'
+                this_iter['train LL']=history_no_copy[i]['train_ll']
+                this_iter['test LL']=history_no_copy[i]['test_ll']
+                tab.append(this_iter)
+            if fill:
+                for i in range (nc,len(history_copy)):
+                    this_iter={}
+                    this_iter['run']=run
+                    this_iter['training window']=w
+                    this_iter['iteration']=i
+                    this_iter['grammar']='no copy'
+                    this_iter['train LL']=history_no_copy[nc-1]['train_ll']
+                    this_iter['test LL']=history_no_copy[nc-1]['test_ll']
+                    tab.append(this_iter)
+                   
+
+    return pd.DataFrame(tab)
+
+
+

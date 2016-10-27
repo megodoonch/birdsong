@@ -599,13 +599,13 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=Tru
     print ("\nCopy")
     # train copy grammar
     ll_copy,parsed_train,parsed_test,history_copy = em_train(train,test,bigrams,fsm_copy,n,presmooth,sc,start,end)
-    print ("Copy LL test corpus: %.2f"%ll_copy)
+    #print ("Copy LL test corpus: %.2f"%ll_copy)
 
     print ("\nNo Copy")
     # train no copy grammar
     # we only need to EM once
     ll_no_copy,parsed_train,parsed_test,history_no_copy = em_train(train,test,bigrams,fsm_no_copy,2,presmooth,sc,start,end)
-    print ("No Copy LL test corpus: %.2f"%ll_no_copy)
+    #print ("No Copy LL test corpus: %.2f"%ll_no_copy)
 
     # print the difference    
     diff = (ll_copy-ll_no_copy)
@@ -619,7 +619,7 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=Tru
     return (ll_copy,history_copy),(ll_no_copy,history_no_copy)
      
 
-def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,presmooth=True,sc=SC,start='S',end='F'):
+def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth=True,sc=SC,start='S',end='F'):
     """
     divides the corpus into "windows" windows;
     for each window, trains on that window and tests on the remainder
@@ -629,40 +629,69 @@ def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,windows,presmooth=True,sc=SC,s
     bigrams    : bigram markhov chain
     fsm_copy   : FSM with copy rules
     fsm_no_copy: FSM without copy rules
+    n          : number of EM iterations
     windows    : number of windows to divide into (int)
+    presmooth  : whether to smooth at each step or only at the end
+    sc         : smoothing constant: the amount of probability to distribute over rhss
     start      : start state in FSMs
     end        : final state in FSMs
 
     Returns
     pair
-    (list of (ll copy, ll no copy, difference) that came out in favour of the copy grammar,
-    list of (ll copy, ll no copy, difference) that came out in favour of the no copy grammar)
+    list of ((ll copy, copy history),(ll no copy, no copy history)), one for each window 
     """
-    for_copy = [] # a place to store results in favour of the copy grammar
-    for_no_copy=[] # a place to store results in favour of the no-copy grammar
+    results = [] # a place to store results
+
     size=len(corpus)
-    window_size = size//windows # divide up the corpus into windows this size
+    window_size = size//w # divide up the corpus into windows this size
     i=0
-    while i<windows:
-        print ("\nWindow %i of %i"%(i+1,windows))
+    while i<w:
+        print ("\nWindow %i of %i"%(i+1,w))
         #training corpus is one window
-        print (i*window_size)
-        print (i*window_size+window_size)
+        print ((i*window_size),(i*window_size+window_size))
         train=corpus[(i*window_size):(i*window_size+window_size)]
         # testing corpus is the other windows together
         test=corpus[:i*window_size]+corpus[i*window_size+window_size:]
 
         # train the grammars and compare the log likelihoods of the test corpus
-        (ll_copy,history_copy),(ll_no_copy,history_no_copy)=compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,presmooth,sc,start,end)
         # add the result to the right list of results
-        if ll_copy>ll_no_copy:
-            for_copy.append(((ll_copy,history_copy),(ll_no_copy,history_no_copy),ll_copy-ll_no_copy))
-        else:
-            for_no_copy.append(((ll_copy,history_copy),(ll_no_copy,history_no_copy),ll_no_copy-ll_copy))
+        results.append(compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,presmooth,sc,start,end))
         i+=1
 
-    print ("\n %i for copy, %i for no copy"%(len(for_copy),len(for_no_copy)))
-    return for_copy,for_no_copy
+    return results
+
+
+def iter_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,runs,presmooth=True,sc=SC,start='S',end='F'):
+    """
+    Runs windows multiple times, re-initialising the grammar probabilities each time
+
+    Arguments
+    corpus     : string list
+    bigrams    : bigram markhov chain
+    fsm_copy   : FSM with copy rules
+    fsm_no_copy: FSM without copy rules
+    n          : number of EM iterations
+    windows    : number of windows to divide into (int)
+    runs       : number of times to do the whole thing 
+    presmooth  : whether to smooth at each step or only at the end
+    sc         : smoothing constant: the amount of probability to distribute over rhss
+    start      : start state in FSMs
+    end        : final state in FSMs
+
+    Returns
+    pair
+    list of lists of ((ll copy, copy history),(ll no copy, no copy history)), one for each run
+
+    """
+
+    results=[]
+    i=0
+    while i<=runs:
+        print ("\nRun %i of %i"%(i,runs))
+        results.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth,sc,start,end))
+        i+=1
+
+    return results
 
 
 
@@ -688,18 +717,11 @@ def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=Tru
     i=2 # start with 2 windows
     tots = []
     while i<=max_windows:
+        print ("\nDividing corpus into %i windows"%i)
         # train and test on i windows
         tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,i,presmooth,sc,start='S',end='F'))
         i+=1
     # print a summary of the results
-    for w,(for_copy,for_no_copy) in enumerate(tots):
-        print ("\n\n%i windows"%(w+2))
-        print ("\nFor copy: %i"%(len(for_copy)))
-        for (c,nc,dif) in for_copy:
-            print (dif)
-        print ("\nFor no copy: %i:"%(len(for_no_copy)))
-        for (c,nc,dif) in for_no_copy:
-            print (dif)
 
     return tots
         
