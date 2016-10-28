@@ -7,14 +7,15 @@
 	* `em.py` has the expectation maximisation learner
 	* depricated: `cky.py` has a CKY parser for the regular grammar of the operations. It also has the beginnings of the I/O learner: outside probabilities and the expected counts of a rule in a sentence.
 	* `development.py` has some old functions that I don't want to throw away just yet
+* `surface/` contains analysis on the "surface" of the corpus, that is, things that are generally true regardless of the grammar. 
 
-* Depricated: `ckypy/` contains the basic CKY parser
+* Deprecated: `ckypy/` contains the basic CKY parser
 	* `input` contains output from the previous OCaml script so that we can easily extract the rules
 	* `read_cath8_parses.py` reads `input` and does something with it.
 	* `cky.py` is the parser we'll probably use. It treats copying as a string operation.
 	* `cky_constituent_copy.py` this is a version of the parser that only copies constituents and does so with rules marked as copy rules. Currently imported in `read_cath8_parses.py`.
 	* `common.py` contains functions common to both parsers
-* Depricated: `mg/` contains a minimalist-style parser
+* Deprecated: `mg/` contains a minimalist-style parser
 	* `parser.py` is a draft of a minimalist grammar style cky parser that handles copies and transitions. This might be what we want. More later...
 	  
 
