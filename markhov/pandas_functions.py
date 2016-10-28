@@ -1,7 +1,22 @@
+"""
+This file gives a bunch of functions for creating pandas dataframes from histories
+
+
+"""
+
 import pandas as pd
 
 
 def rules2triples(ops_fsa):
+    """
+    Makes strings and triples of rules in FSA
+
+    Arguments
+    ops_fsa : the operations FSA, no probs
+
+    Returns
+    list of ("lhs->e rhs", (lhs,rhs,e)) pairs
+    """
     rules=[]
     for lhs in ops_fsa:
         for (rhs,e) in ops_fsa[lhs]:
@@ -11,19 +26,39 @@ def rules2triples(ops_fsa):
 
 
 def ops_table(history,ops_fsa):
+    """
+    Makes a DF of the rule probabilities through the iterations of an EM history
+
+    Arguments
+    history : output of EMs, a list of dicts that include the fsa with probs at the time
+
+    Returns
+    dataframe of the rule probs as they changed through the iterations
+
+    """
     rules=rules2triples(ops_fsa)
     tab=[]
     for (rule,(lhs,rhs,e)) in rules:
         thisrule={' rule':rule}
         for i in range(len(history)):
             p=history[i]['fsa'][lhs][(rhs,e)]
-            thisrule["p.iteration%03d"%i]=p
+            thisrule["p.iteration%03d"%i]=p # this makes a column called "p.iteration001" etc
         tab.append(thisrule)
 
     return pd.DataFrame(tab)
 
 
 def trans2pairs(trans):
+    """
+    Makes strings and triples of rules in transitions
+
+    Arguments
+    trans : the transitions (bigrams), no probs
+
+    Returns
+    list of ("a,b", (a,b)) pairs
+    """
+
     bigrams=[]
     for lhs in trans:
         for rhs in trans[lhs]:
@@ -32,19 +67,30 @@ def trans2pairs(trans):
     return bigrams
 
 def trans_probs_table(history,trans):
+    """
+    Makes a DF of the rule probabilities through the iterations of an EM history
+
+    Arguments
+    history : output of EMs, a list of dicts that include the trans probs with probs at the time
+
+    Returns
+    dataframe of the rule probs as they changed through the iterations
+
+    """
+
     bigrams=trans2pairs(trans)
     tab=[]
     for (bi,(lhs,rhs)) in bigrams:
         thisrule={' rule':bi}
         for i in range(len(history)):
             p=history[i]['trans_probs'][lhs][rhs]
-            thisrule["p.iteration%i"%i]=p
+            thisrule["p.iteration%03d"%i]=p # this makes a column called "p.iteration001" etc
         tab.append(thisrule)
 
     return pd.DataFrame(tab)
 
 
-def rule2columns(rule,lhs,rhs,history,grammar,automaton,w,run,begin=None,end=None):
+def rule2columns(rule,lhs,rhs,history,grammar,automaton,w,run,begin=0,end=None):
     """
     Given a rule and a bunch of info about run, windows, grammar, etc, 
     builds a dict for a dataframe for the rule
@@ -52,28 +98,64 @@ def rule2columns(rule,lhs,rhs,history,grammar,automaton,w,run,begin=None,end=Non
     for each run of Windows
     for each training window
 
-    
+    Arguments
+    rule     : the rule string (eg 'lhs->e rhs')
+    lhs,rhs  : left and righthand sides of rule. If FSA, rhs = (emission, operation)
+    history  : a list of dicts from an EM function including expected counts
+    grammar  : 'copy' or 'no copy'
+    automaton: 'fsa' or 'trans_probs'
+    w        : training window number
+    run      : run-th time we did EM
+    begin    : usually 0, can be set later so you can fill in blanks in no-copy grammar, 
+                which doens't need to iterate
+    end      : usually len(history), but if filling in blanks in no-copy grammar, len(copy history)
+
+    Returns
+    list of rule dicts with expected counts, probabilities, run, iteration, 
+    training window, grammar, the parts of the rule, and which automaton the rules belong to 
 
     """
 
-    if begin==None:
-        begin=0
     if end==None:
         end=len(history)
 
     rule_set=[]
-    
+    # go through the history and extract values at each step
     for i in range(begin,end):
-        this_rule={' rule':rule}    
+        this_rule={' rule':rule}
+
+        # the normal case: we go through the whole history
         if i < len(history):
-            p=history[i][automaton][lhs][rhs]
-        else: 
-            p=history[begin-1][automaton][lhs][rhs]
+            p=history[i][automaton][lhs][rhs] # rule prob
+
+            # operations
+            if i>0 and lhs in history[i]['scs']: # if we actually have this lhs recorded in this history step
+                this_rule['expected TC']=sum(history[i]['tcs'][lhs][rhs].values()) # sum the expected values from the corpus
+                this_rule['expected SC']=sum(history[i]['scs'][lhs].values()) # sum the expected values from the corpus
+
+            # bigrams
+            elif i>0 and lhs in history[i]['ucs']: # if we actually have this lhs recorded in this history step
+                this_rule['expected BC']=sum(history[i]['bcs'][lhs][rhs].values()) # sum the expected values from the corpus
+                this_rule['expected UC']=sum(history[i]['ucs'][lhs].values()) # sum the expected values from the corpus
+
+        else:  # in the weird case, we're filling in the blank no-copy cells with the values from the final iteration
+            p=history[-1][automaton][lhs][rhs] 
+            if lhs in history[begin-1]['scs']:
+                this_rule['expected TC']=sum(history[-1]['tcs'][lhs][rhs].values())
+                this_rule['expected SC']=sum(history[-1]['scs'][lhs].values())
+
+            elif lhs in history[i]['ucs']:
+                this_rule['expected BC']=sum(history[-1]['bcs'][lhs][rhs].values())
+                this_rule['expected UC']=sum(history[-1]['ucs'][lhs].values())
+
+
         this_rule["prob"]=p
-        this_rule['run']=run
-        this_rule['training window']=w
+        this_rule['run']=run+1
+        this_rule['training window']=w+1
         this_rule['iteration']=i
         this_rule['grammar']=grammar
+        this_rule['lhs']=lhs
+        this_rule['rhs']=rhs
         if automaton == 'fsa':
             this_rule['automaton']='operations'
         elif automaton == 'trans_probs':
@@ -160,6 +242,31 @@ def ll_corpus_table(history):
             ll=em.ll_corpus(parsed_corpus,history[i]['trans_probs'],history[i]['fsa'])
 
         this_iter={'iteration':i,
+                   'likelihood':ll}
+        tab.append(this_iter)
+
+    return pd.DataFrame(tab)
+
+
+def ll_init_only_table(history):
+    """
+    make a pandas dataframe of likelihood of training corpus as we trained 
+
+    If we built an elaborate one, it's already in here; otherwise we calculate it
+
+    Arguments
+    history   :  list of dicts including trans_probs, fsa, and if elaborate, train_ll
+
+    Returns
+    dataframe of LLs over the iterations
+    """
+
+    tab=[]
+    for i in range(len(history)):
+        ll=history[i]['train_ll']
+
+        this_iter={'run':history[i]['run'],
+                   'grammar':history[i]['grammar'],
                    'likelihood':ll}
         tab.append(this_iter)
 

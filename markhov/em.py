@@ -725,3 +725,56 @@ def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=Tru
 
     return tots
         
+
+
+def init_only(corpus,trans,fsm_copy,fsm_no_copy,n,sc=SC,start='S',end='F'):
+    """
+    Initialises grammars and computes the LL of the corpus
+
+    Arguments
+    corpus     : string list
+    bigrams    : bigram markhov chain
+    fsm_copy   : FSM with copy rules
+    fsm_no_copy: FSM without copy rules
+    n          : number of times to do it
+    sc         : smoothing constant
+    start      : start state in FSMs
+    end        : final state in FSMs
+    
+    Returns
+    list of dicts with LLs and grammars
+    """
+
+    # pre-parsed corpus (but no probabilities assigned)
+    corpus_c=parse_corpus(corpus,trans,fsm_copy,start) 
+    corpus_nc=parse_corpus(corpus,trans,fsm_no_copy,start) 
+
+    # store the results as we go
+    history = []
+       
+    i=0
+    while i < n: 
+        # starting FSA and bigram transitional probabilities
+        fsa_c = initialise(fsm_copy)
+        fsa_nc = initialise(fsm_no_copy)
+        trans_probs = initialise(trans)
+        
+        # copy grammar
+        iter_c = {'fsa':fsa_c,'trans_probs':trans_probs,'grammar':'copy', 'run':i}
+        # LL of corpus given initialised copy grammar
+        iter_c['train_ll']=ll_corpus(corpus_c,trans_probs, fsa_c, start, end)
+        history.append(iter_c)
+
+
+        # No copy grammar
+        iter_nc = {'fsa':fsa_nc,'trans_probs':trans_probs, 'grammar':'no copy','run':i}
+        # LL of corpus given initialised no-copy grammar
+        iter_nc['train_ll']=ll_corpus(corpus_nc,trans_probs,fsa_nc,start,end)
+        history.append(iter_nc)
+
+        
+        # increment and do it again
+        i+=1
+
+
+    return history

@@ -40,8 +40,8 @@ def log_add(logx,logy):
 
     # How far "down" is logY from logX?
     negdiff = logy - logx
-    if negdiff < -30: # If it's small, we can just ignore logY altogether (it won't make much of a difference)
-        return logx
+    # if negdiff < -30: # If it's small, we can just ignore logY altogether (it won't make much of a difference)
+    #     return logx
         # However, in my case I can maybe keep it in because it will just become zero in the sum below.
 
     # Otherwise, use some simple algebra to stay in the log domain
