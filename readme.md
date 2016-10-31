@@ -5,7 +5,7 @@
 * `markhov/` contains a model with two Markhov chains: one for the bigrams and one for the operations
 	* `markhov.py` houses the main functions for parsing the surface sentences
 	* `em.py` has the expectation maximisation learner
-	* depricated: `cky.py` has a CKY parser for the regular grammar of the operations. It also has the beginnings of the I/O learner: outside probabilities and the expected counts of a rule in a sentence.
+	* deprecated: `cky.py` has a CKY parser for the regular grammar of the operations. It also has the beginnings of the I/O learner: outside probabilities and the expected counts of a rule in a sentence.
 	* `development.py` has some old functions that I don't want to throw away just yet
 * `surface/` contains analysis on the "surface" of the corpus, that is, things that are generally true regardless of the grammar. 
 
@@ -16,7 +16,7 @@
 	* `cky_constituent_copy.py` this is a version of the parser that only copies constituents and does so with rules marked as copy rules. Currently imported in `read_cath8_parses.py`.
 	* `common.py` contains functions common to both parsers
 * Deprecated: `mg/` contains a minimalist-style parser
-	* `parser.py` is a draft of a minimalist grammar style cky parser that handles copies and transitions. This might be what we want. More later...
+	* `parser.py` is a draft of a minimalist grammar style cky parser that handles copies and transitions.
 	  
 
 ## terminology
@@ -35,19 +35,14 @@
 
 This grammar works as follows: there are four operations, Merge, Copy, Clear, and End. As we build the sentence we also build a buffer which is a suffix of the sentence so far. Merge adds a word to both sentence and buffer. Copy appends the buffer to both the sentence and the buffer itself, and Clear clears the buffer. End ends the sentence.  The transition from one operation to another has a transitional probability and so does the transition from one word to the next.
 
-To reduce clutter, Clear can't reccur unless a Copy intervenes. We can't prevent the parser from including parses in which we clear pointlessly at the end, but we remove them from consideration in `check_ops`. Ultimately we want only parses in which we clear the buffer to reset it to create a new copy and then we actually create that copy.
+To reduce clutter, Clear can't reccur unless a Copy intervenes. Ultimately we want only parses in which we clear the buffer to reset it to create a new copy and then we actually create that copy.
 
 The main functions in `markhov.py` are:
 
-* `generate_ops` generates a legal sequence of operations using the porbabilities in the ops PFSM
-* `generate_string` generates a sentence based on a sequence of operations and the probabilities in the bigrams markhov chain
-* `gen` is a wrapper function that generates a string in the language
-* `gen_corpus` generates a corpus of length `n`
-* `parse` finds for a sentence all the possible parses. A parse is a pair of the sequence of bigrams and the sequence of operations used
-* `check_bigrams` calculates the probability of a bigram sequence
-* `check_ops` calculates the probability of an operation sequence
-* `prob_parse` finds the probability of a single parse by multiplying the probabilities of the bigram sequence and the operation sequence
-* `prob_string` calculates the total probability of a string by adding the probabilities of the parses 
+* `possible_transitions` finds all possible transitions from a state
+* `copy_and_apply_transition` takes an agenda item and applies a transition to it if valid, returning a new agenda item
+* `parse` finds all possible parses of a surface string. A parse is a pair of bigram transitions and operations transitions
+* `p_bigrams` and `p_route` find the probability of a route through the markov chain and the operations FSA respectively, and `p_parse` multiplies the probabilities of both
 
 
 ### operations
@@ -61,17 +56,17 @@ In the bigram grammar PFSA there are only two states:
 *  F : final state
 You can transition from S to F only on the operation End. Merge is a loop back to S.
 
-![operations in no-copy grammar](markhov/bi_ops.png)
+![operations in no-copy grammar](bi_ops.png)
 
 
 In the Copy grammar PFSA the states are as follows:
 
 * S:    this is the start state. From here you must Merge
-* COPY: this is a bit of misnomer but it means that we haven't Cleared since the last time we Copied or we haven't cleared yet. From here you can do anything, and only from here can you end. This prevents pointless Clears at the end of the sequence
+* NotCL: this means that we haven't Cleared since the last time we Copied or we haven't cleared yet. From here you can do anything, and only from here can you end. This prevents pointless Clears at the end of the sequence
 * CLEAR_S : this is like the start state but for the buffer. This is exactly for clearing. From here you must Merge, which takes you to CLEAR
-* CLEAR : from here you can Merge and Copy. YOu can't clear because that makes too many damn parses.
+* CLEAR : from here you can Merge and Copy. You can't clear because that makes too many damn parses.
 
-![operations in copy grammar](markhov/ops.png)
+![operations in copy grammar](ops.png)
 
 For the CKY parser we make an operations phrase structure grammar  in Chomsky Normal Form:
 
@@ -98,9 +93,30 @@ When we parse we just keep track of the bigram transitions we actually followed 
 
 It's a little confusing because we store the bigrams used not as a list of pairs but just a substring of the actual sentence.
 
-The bigrams include edge symbols. `parse` in `markhov.py` adds the edge symbols itself. This might need to be changed depending on exactly how we generate the sentences to feed to `parse`
+The bigrams include beginning edge symbols, but not final edge symbols.
 
-### properties
+### How it works
+
+The sequence of operations together with a sequence of bigrams uniquely determine a surface string. The grammar works as follows:
+
+We build in parallel two strings, the surface string and a *buffer*, which builds copies. There are three operations, Merge, Copy and Clear.
+
+* *Merge* adds a word to the end of the surface string. We also add this word to the buffer. What word gets added depends on the transitional probability from the last word merged. The transitional probabilities are determined by the markov chain component of the grammar.
+* *Copy* copies the buffer and appends it to the surface string. It also appends it to the buffer, which allows for embedded copying.
+* *Clear* clears the buffer
+* *End* returns the string
+
+You can only copy or clear if there's material in the buffer. You can also only clear if you're preparing a new copy. Essentially, Clear is the "start to build a copy" function. We could have made it explicitly like this instead. I forget why we didn't.
+
+An example:
+
+*merge merge copy clear merge merge copy end* + *a b c d* generates *a b a b c d c d* as follows. I've annotated the derivation tree with the string generated so far and the buffer.
+
+
+![Annotated derivation tree](example.png)
+
+
+### Properties
 
 This grammar only copies embedded copies. No copying indefinite material behind a Copy head like in the old OCaml version. We think this is good: it makes it seem more grammatical and less extra-grammatical.
 

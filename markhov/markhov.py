@@ -393,7 +393,7 @@ def possible_transitions(q,fsm):
     """
     finds all possible transitions out of state q of an fsm
 
-    Arguements
+    Arguments
     q   : state (string)
     fsm : dict { lhs : rhss}
 

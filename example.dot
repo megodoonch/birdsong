@@ -1,0 +1,36 @@
+digraph {
+	
+node [shape = none; height=0; width=0];
+edge [dir=none];
+
+0 [label="Merge\ns=a\nbuf=a"];
+1 [label="Merge\nab\nab"];
+2 [label="Copy\nabab\nabab"];
+3 [label="Clear\nabab\n\n"];
+4 [label="Merge\nababc\nc"];
+5 [label="Merge\nababcd\ncd"];
+6 [label="Copy\nababcdcd\ncdcd"];
+11 [label="End\nababcdcd"];
+
+7 [label="a"];
+8 [label="b"];
+9 [label="c"];
+10 [label="d"];
+
+
+0->7;
+1->0;
+1->8;
+2->1;
+3->2;
+4->3;
+4->9;
+5->4;
+5->10;
+6->5;
+11->6;
+
+
+
+
+}
