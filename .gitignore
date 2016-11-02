@@ -6,6 +6,7 @@
 parse_*.pdf
 parse_*.png
 
+
 ops*.csv
 trans*.csv
 
@@ -15,6 +16,7 @@ ops.ps
 bi_ops.pdf
 bi_ops.png
 bi_ops.ps
+example.png
 
 .tmp.dot
 
