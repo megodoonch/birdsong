@@ -1,0 +1,24 @@
+digraph  { rankdir=LR;
+	//node [shape=circle];	
+	
+	F [shape=doublecircle];
+	
+
+	S->S [label=merge];
+	S->S [label=copy];
+	S->Build [label=begCP];
+	S->F [label=end];
+
+	
+	
+	Build->Build [label=merge];
+	Build->Build [label=copy];
+	Build->Hold [label=endCP];
+
+	Hold->Hold [label=merge];
+	Hold->S [label=copy];
+	
+
+}
+
+

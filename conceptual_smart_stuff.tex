@@ -1,4 +1,8 @@
 \documentclass[12pt]{article}
+\usepackage[pdftex]{graphicx}
+
+\usepackage{qtree}
+
 \usepackage{mathptmx}% http://ctan.org/pkg/mathptmx
 \usepackage{times}
 \usepackage{amsmath}
@@ -37,12 +41,17 @@
 \newcommand\la{\ensuremath{\langle}}
 \newcommand\ra{\ensuremath{\rangle}}
 \newcommand\arr{\ensuremath{\rightarrow}}
+\newcommand\emp{\ensuremath{\epsilon}}
 \newcommand\op{\text{\textsl{op}}}
 \newcommand\mg{\text{\textsl{mg}}}
 \newcommand\cp{\text{\textsl{copy}}}
 \newcommand\cl{\text{\textsl{clear}}}
 \newcommand\ed{\text{\textsl{end}}}
 \newcommand\expr{\text{\textsl{expr}}}
+\newcommand\Lex{\text{\textsl{Lex}}}
+\newcommand\fea[1]{\text{\texttt{#1}}}
+
+
 \newcommand\der{\leftarrow}
 %\newcommand\der{\text{:-}}
 
@@ -166,6 +175,117 @@ Such an application of \mg~is called a \textit{merge of a}.
   \end{description}
 
 \end{definition}
+
+This MG doesn't work quite like ours because you can clear the buffer pretty much whenever.
+
+\begin{definition}[Minimalist Grammar]\ 
+
+  \begin{description}
+  \item[Features] $F=\{\fea{=a} | a\in \sg \} \cup \sg$
+    % \begin{itemize}
+    % \item Bare features $BF=\sg\cup\{S\}$, $S$ a designated start feature
+    % \item $F=BF\cup\{\fea{=a} | a\in sg\}$
+    % \end{itemize}
+
+  \item[\Lex]
+    \begin{itemize}
+    \item $\forall (a,b) \in \BIGR$ we have
+      $a::\fea{a}, a::\fea{a =b} \in \Lex$
+    \item $\forall ({[},a)\in\BIGR$ we have $\epsilon::\fea{=a}$
+    \end{itemize}
+
+  \item[\mg] $\mg((s,b)::\fea{=X}, a::X\beta) = (sa,ba)::\beta$
+  \item[\cp] $\cp((s,b)::\alpha) = (sb,bb)::\alpha$
+  \item[\cl] $\cl((s,b)::\alpha) = (s,\epsilon)::\alpha$ ~~~~if $b\neq\emp$
+  \item[\ed] $\ed((s,b)::\emp) = s$
+
+
+  \end{description}
+\end{definition}
+
+\Tree[.\ed\\aabab [.\cp\\(aabab,abab)::\fea{S} [.\mg\\(aab,ab)::\fea{S} [.\mg\\(aa,a)::\fea{=bS} [.\cl\\(a,\emp)::\fea{=aS}  [.\mg\\(a,a)::\fea{=aS} \emp::\fea{=aS} a::\fea{a=a} ]] a::\fea{a=b} ] b::\fea{b} ]]]
+
+This one I think is strongly equivalent to our grammar.
+
+\begin{definition}[Minimalist Grammar 2]\ 
+
+  \begin{description}
+  \item[Features] $F=\{\fea{=a,a} | a\in \sg \} \cup\{\fea{+clear,-clear}\}$
+    % \begin{itemize}
+    % \item Bare features $BF=\sg\cup\{S\}$, $S$ a designated start feature
+    % \item $F=BF\cup\{\fea{=a} | a\in sg\}$
+    % \end{itemize}
+
+  \item[\Lex]
+    \begin{itemize}
+    \item $\forall (a,b) \in \BIGR$ we have
+      $a::\fea{a=b} \in \Lex$
+    \item $\forall (a,{]})\in\BIGR$ (OR $\forall a\in\sg$) we have $a::\fea{a}\in\Lex$
+    \item $\forall ({[},a)\in\BIGR$ we have $(\emp::\fea{=a},\emp::\fea{-clear})\in\Lex$
+    \end{itemize}
+
+  \item[\mg] $\mg((s::\fea{=X},b::\alpha), a::\fea{X}\beta) = (sa::\beta,ba::\alpha)$
+  \item[\cp] $\cp((s::\beta,b::\pm\fea{clear}) = (sb::\beta, bb::\fea{-clear})$
+  \item[\cl] $\cl(s::\beta,b::\fea{-clear}) = (s::\beta,\emp::\fea{+clear})$
+  \item[\ed] $\ed(s::\emp,b::\fea{-clear}) = s$
+
+
+  \end{description}
+\end{definition}
+
+\Tree[.\ed\\aabab [.\cp\\aabab::\emp,abab::\fea{-cl} [.\mg\\aab::\emp,ab::\fea{+cl} [.\mg\\aa::\fea{=b},a::\fea{+cl} [.\cl\\a::\fea{=a},\emp::\fea{+cl}  [.\mg\\a::\fea{=a},a::\fea{-cl} \emp::\fea{=a},\emp::\fea{-cl} a::\fea{a=a} ]] a::\fea{a=b} ] b::\fea{b} ]]]
+
+
+\subsubsection{Copy-move}
+\label{sec:copy-move}
+
+\newcommand\bcp{\text{\textsl{begCP}}}
+\newcommand\ecp{\text{\textsl{endCP}}}
+
+
+Ed also wanted to be able to basically copy-move. We can do this by replacing \cl~with two operations: \bcp, which opens the buffer, and \ecp, which stops writing to the buffer. When the buffer is existent and open we Merge and Copy to it. When it is existent closed we can Copy it. 
+
+\begin{definition}[Minimalist Grammar 3]\ 
+
+
+  \begin{description}
+  \item[Features] $F=\{\fea{=a,a} | a\in \sg \}\cup\{\fea{-copy,+copy}\}$
+    % \begin{itemize}
+    % \item Bare features $BF=\sg\cup\{S\}$, $S$ a designated start feature
+    % \item $F=BF\cup\{\fea{=a} | a\in sg\}$
+    % \end{itemize}
+
+  \item[\Lex]
+    \begin{itemize}
+    \item $\forall (a,b) \in \BIGR$ we have
+      $a::\fea{a}, a::\fea{a =b} \in \Lex$
+    \item $\forall ({[},a)\in\BIGR$ we have $\epsilon::\fea{=a}$
+    \end{itemize}
+
+  \item[Merge simple] $\mg(s::\fea{=X}, a::\fea{X}\beta) = sa::\beta$
+  \item[Merge and build a copy] $\mg((s::\fea{=X},b::\fea{+copy}), a::\fea{X}\beta) = (sa::\beta,ba::\fea{+copy})$
+  \item[Merge and hold a copy] $\mg((s::\fea{=X},b::\fea{-copy}), a::\fea{X}\beta) = (sa::\beta,b::\fea{-copy})$
+  \item[Begin building a copy] $\bcp(s::\beta) = (s::\beta,\emp::\fea{+copy})$
+  \item[Store the copy] $\ecp(s::\beta,b::\fea{+copy}) = (s::\beta,b::\fea{-copy})$
+
+
+  \item[Copy and keep building the copy] $\cp((s::\beta,b::\fea{+copy}) = (sb::\beta, bb::\fea{+copy})$
+  \item[Copy and end copy] $\cp((s::\beta,b::\fea{-copy}) = sb::\beta$
+
+  \item[\ed] $\ed(s::\emp) = s$
+
+
+  \end{description}
+
+
+\end{definition}
+
+\Tree[.\ed\\aabab [.\cp\\aabab::\emp~ [.\ecp\\aab::\emp,ab::\fea{-copy}  [.\mg\\aab::\emp,ab::\fea{+copy} [.\mg\\aa::\fea{=b},a::\fea{+copy} [.\bcp\\a::\fea{=a},\emp::\fea{+copy}  [.\mg\\a::\fea{=a} \emp::\fea{=a} a::\fea{a=a} ]] a::\fea{a=b} ] b::\fea{b} ]]]]
+\Tree[.\ed\\aabcab [.\cp\\aabcab::\emp~ [.\mg\\aabc::\emp,ab::\fea{-copy}  [.\ecp\\aab::\fea{=c},ab::\fea{-copy}  [.\mg\\aab::\fea{=c},ab::\fea{+copy} [.\mg\\aa::\fea{=b},a::\fea{+copy} [.\bcp\\a::\fea{=a},\emp::\fea{+copy}  [.\mg\\a::\fea{=a} \emp::\fea{=a} a::\fea{a=a} ]] a::\fea{a=b} ] b::\fea{b=c} ]]  c::\fea{c} ] ]]
+
+
+\includegraphics[width=5in]{ops_distance.png}
+
 
 \begin{definition}[Trying to make a prolog notation MCSG]
 This is the intuition, but it's not right. We need to include the bigram rules in the category names, thus multiplying the rules all the hell.
@@ -374,6 +494,44 @@ As a corollary, in an unambiguous corpus the algorithm will converge to a global
 
 
 
+\section{Higher level points}
+\label{sec:higher-level-points}
+
+\subsection{The hypothesis}
+\label{sec:hypothesis}
+
+
+Songbirds whose songs are made up of a vocabulary of chirps are normally thought to determine their next chirp entirely on the basis of the previous chirp; in other words their grammar is a Markov chain. They have a probability distribution over the bigrams of their vocabulary ($\sg \times \sg \arr [0,1]$) and that is the extent of the complexity of their grammar.
+
+We claim that the California Thrasher has a more complex grammar. We observe that the bird has repeated substrings in its songs, some even embedded inside other repeated fragments. This might just be a coincidence, or it might be that the bird includes copying in its grammar.  A grammar with copying is far above a Markov chain in the Chomsky hierarchy: it is mildly context sensitive, like human language grammars. 
+
+\subsection{How we try to answer the question}
+\label{sec:how-we-try}
+
+All we have is samples of the bird's song. Naturally, a finite sample can always be generated by the simplest grammar available: a finite grammar of legal songs. We can't ask the bird for grammaticality judgements so all we have to go on is the corpus. We can make up a bigram grammar that generates the corpus, and we can also make up a grammar with copying that generates the corpus, and we can make them up so that they generate exactly the same language.
+
+However, since birds are thought to be stochastic creatures -- they use not just a bigram grammar but a Markov chain, which is a probabilistic bigram grammar -- we have additional evidence for what their grammar might really look like: we have the probability distribution in the corpus. We can therefore compare the performance of two grammars, one with copying and the other without, on the corpus. 
+
+To do this we take a part of the corpus and find the best fit of the rule probabilities in each grammar for that part of the corpus. We then test each fitted grammar's ability to predict the rest of the corpus. The grammar that makes a better prediction is a more likely grammar for that corpus.
+
+\subsection{Questions and concerns}
+\label{sec:questions-concerns}
+
+\begin{itemize}
+\item If you add copying to the grammar of just any bird, will it perform better?
+\item Floris's fancy repetition-measurer finds that the bigrams themselves predict \textit{more} copying, not less. On the one hand this is fine: the point is that the bird needs to be able to independently control copying. But on the other hand, this is very weird: we started with this surface observation of copying, and now we claim that the bird is a copy bird based on \textit{less} copying?
+\item Do we need to prove that no sub-MCS grammar predicts the corpus as well as the copy grammar in order to be saying anything about the bird's Chomsky-hierarchy status? (note: this is impossible)
+\item Do we need to prove that our grammar is indeed copying? Or that it is indeed MCS?
+\end{itemize}
+
+\subsection{Notes on the Chomsky hierarchy}
+\label{sec:notes-chomsky-hier}
+
+\includegraphics[width=6in]{Chomsky-hierarchy.pdf}
+
+There are certain surface patterns that are known to only be generable with grammars of certain types. For example, $a^nb^n$ famously requires a context free grammar. However, since this is a hierarchy anything you can generate with a lower-level grammar you can also generate with a higher-level grammar. If we have a language or a corpus that is, say, regular, we might still want to say that the grammar that generated it is supra-regular. This would have to be based on either additional facts about the language or corpus, on arguments from parsimony, or on additional information about the source of the corpus. 
+
+In our case we argue from the probability distribution in the corpus. If we have reason to think that the bird generates his song probabilistically, then the probabilities in the grammar predict probabilities in the corpus. A grammar with ``room'' in it to include probabilities for copying should better predict the corpus if the bird is indeed copying.
 
 
 
@@ -385,6 +543,11 @@ As a corollary, in an unambiguous corpus the algorithm will converge to a global
 \item Prove that each rule update increases the likelihood of the corpus.
 \item Prove convergence.
 \end{itemize}
+
+
+
+
+
 
 
 
