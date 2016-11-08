@@ -186,6 +186,30 @@ Such an application of \mg~is called a \textit{merge of a}.
 
 \end{definition}
 
+
+\begin{definition}
+  A derivation step is a pair of expressions such that the second is the result of applying one operation to the first.
+
+  i.e.  $(e_1,e_2)$ is a derivation step iff $\exists \op\in\OPS$ such that $e_2=\op(e_1)$
+
+  For $e_i\in\expr$  we write $e_1 \Rightarrow e_2$ if $(e_1,e_2)$ is a derivation step and say that $e_2$ is \textit{derived from} $e_1$.
+
+  If there is a series of $n$ derivation steps $e_0\Rightarrow e_1 \Rightarrow \dots \Rightarrow e_n$, then we write $e_0\Rightarrow^n e_n$, or, in the general case, $e_0\Rightarrow^* e_n$, and say  $e_n$ is \textit{derived from} $e_0$. 
+
+%  If there is a finite series of derivation steps $(e_0,e_1),(e_1,e_2)...,(e_{n-1},e_n)$ where for each consecutive pair of steps the second element of the first step is the same as the first element of the second step, then we write $e_0\Rightarrow^* e_n$ and say  $e_n$ is \textit{derived from} $e_0$. 
+
+\end{definition}
+
+\begin{definition}[Language defined by (\OPS,\BIGR)]
+$L(\OPS,\BIGR)\subseteq\sg^*$ is the language defined by the grammar (\OPS,\BIGR) defined as follows:   $s\in L(\OPS,\BIGR)$ iff $(\epsilon,\epsilon)\Rightarrow^*s$
+\end{definition}
+
+
+\subsection{Minimalist Grammars and PMCFGs}
+\label{sec:minimalist-grammars}
+
+We define some weakly and strongly equivalent MGs because that seems smart.
+
 This MG doesn't work quite like ours because you can clear the buffer pretty much whenever.
 
 \begin{definition}[Minimalist Grammar]\ 
@@ -218,7 +242,6 @@ This MG doesn't work quite like ours because you can clear the buffer pretty muc
 
 \Tree[.\ed\\aabab [.\cp\\(aabab,abab)::\fea{F} [.\mg\\(aab,ab)::\fea{F} [.\mg\\(aa,a)::\fea{a} [.\cl\\(a,\emp)::\fea{a}  [.\mg\\(a,a)::\fea{a} \emp::\fea{S} a::\fea{=Sa} ]] a::\fea{=aa} ] b::\fea{=aF} ]]]\\
 
-This next one I think is strongly equivalent to our grammar.
 
 \begin{definition}[Minimalist Grammar 2]\ 
 
@@ -253,21 +276,26 @@ This next one I think is strongly equivalent to our grammar.
 
 
 
-\subsection{The right one}
+\subsubsection{The right one}
 \label{sec:right-one}
 
 We designed the grammar so that we never copy or clear vacuously. This means that we only copy or clear if there is something in the buffer to copy or clear, and also that we only clear if that act of clearing will define the start of a copy. The former is accomplished by adding a state for when the buffer is empty, from which we can only Merge. The latter is done by adding a new state that we move to when we clear, and from which we can't clear again, nor can we end without first actually copying. When we put these strategies together, we have five states. The start state has no buffer so we can only Merge. From there we go to NotCL, because we have not recently cleared. From here we can do anything, but if we clear, we move to CL$_S$ in which we have cleared (so we can't clear or end) but we also have no buffer so we can't copy either. We Merge and move to CL from which we can't clear or end. If we copy, we move back to NotCL.
 
-In other words, our states are F plus the full complement of $\pm$buffer, $\pm$cleared:
+In other words, our states are \fea{F} plus the full complement of $\pm$buffer, $\pm$cleared:
 
-\begin{tabular}[H]{c|c  c}
+\begin{table}[H]
+  \centering
+  \begin{tabular}[H]{c|c  c}
   & \fea{+clear} &  \fea{-clear}\\
 \hline
  \fea{+buffer}& CL  & NotCL\\
  \fea{-buffer}& CL$_S$ & S\\
 \end{tabular}
 
-We design the MG with features on the string and the buffer. The features on the string model \BIGR and the ones on the buffer model \STATES.
+\caption{Features and equivalent states}
+\label{tab:features-states}
+\end{table}
+We design the MG with features on the string and the buffer. The features on the string model \BIGR~and the ones on the buffer model \STATES.
 
 
 
@@ -322,12 +350,14 @@ We design the MG with features on the string and the buffer. The features on the
   Our grammar, which needs a name, is strongly equivalent to MG3.
 \end{thm}
 
-\begin{proof}[Haffoo]
+\begin{proof}[Proof]
   Every transition in the operations FSA has an equivalent MG rule and vice versa. Every transition in \BIGR is represented as a Merge step of a lexical item.
 
   \begin{enumerate}
   \item Operations FSA
     We use the feature equivalents of the state names. Note there are nine transitions in the FSA including the start state definition, and there are nine featural configurations in the MG in which an operation is defined, modulo the bigram features \fea{a,=a} etc. All nine are covered here.
+
+In the table below we show the parallel FSA transitions and MG rules. In the MG rules we include only the relevant features for clarity.
 
     \begin{tabular}[H]{p{0.5\textwidth} | p{0.5\textwidth}}
       Transition & MG\\
@@ -359,7 +389,7 @@ Only Merge and End interact in any way with the features that come with the ``st
   \end{enumerate}
 \end{proof}
 
-As to whether this is equivalent to a parallel MG, we can begin by simplifying the grammar so that we don't care whether or not we Copy or Clear vacuously. The resulting grammar is clearly weakly equivalent to this one: the only difference is that sometimes operations that do nothing to either the string or the buffer are performed. \ed might look a little worrying, but it is fine too since \fea{F} is the final category, and the start LI has feature \fea{S}. Therefore we don't add an empty string to the yield. This is MG1 above. 
+As to whether MG3 is equivalent to a parallel MG, we can begin by simplifying the grammar so that we don't care whether or not we Copy or Clear vacuously. The resulting grammar is clearly weakly equivalent to this one: the only difference is that sometimes operations that do nothing to either the string or the buffer are performed. \ed might look a little worrying, but it is fine too since \fea{F} is the final category, and the start LI has feature \fea{S}. Therefore we don't add an empty string to the yield. This is MG1 above. 
 
 MG1 is featurally normal for an MG: no weird features like \fea{-clear}. Merge is also defined exactly the same as in an MG. I've simplified the definition to exclude cases that never arise because of the simplicity of the lexicon, but this is unnecessary. 
 
@@ -425,24 +455,24 @@ Ed also wanted to be able to basically copy-move. We can do this by replacing \c
 This is the intuition, but it's not right. We need to include the bigram rules in the category names, thus multiplying the rules all the hell.
 
   \begin{eqnarray*}
-  T(e,e) &\der&\\ 
+  T(\emp,\emp) &\der&\\ 
   L(a) &\der& a ~~~~~~~~~~~~~~~~~~~\forall a\in\sg\\
   T(xa,ya) &\der& T(x,y)~ L(a)  \\
   T(xy,yy) &\der& T(x,y)\\
-  T(x,e) &\der& T(x,y)\\
+  T(x,\emp) &\der& T(x,y)\\
   S(x) &\der& T(x,y)\\
   \end{eqnarray*}
 
 Assuming (a,b) and (b,a) are legal bigrams we get:
 
   \begin{eqnarray*}
-  T(e,e) &\der&\\ 
+  T(\emp,\emp) &\der&\\ 
   A(a) &\der& a \\
   TA(xz,yz) &\der& T(x,y)~ A(z)  \\
   TA(xz,yz) &\der& TA(x,y)~ A(z)  \\
   TA(xz,yz) &\der& TB(x,y)~ A(z)  \\
   TA(xy,yy) &\der& TA(x,y)\\
-  TA(x,e) &\der& TA(x,y)\\
+  TA(x,\emp) &\der& TA(x,y)\\
   S(x) &\der& TA(x,y)\\
     \\
   B(b) &\der& b\\
@@ -450,7 +480,7 @@ Assuming (a,b) and (b,a) are legal bigrams we get:
   TB(xz,yz) &\der& TA(x,y)~ B(z)  \\
   TB(xz,yz) &\der& TB(x,y)~ B(z)  \\
   TB(xy,yy) &\der& TB(x,y)\\
-  TB(x,e) &\der& TB(x,y)\\
+  TB(x,\emp) &\der& TB(x,y)\\
   S(x) &\der& TB(x,y)\\
 \\
 etc\\
@@ -460,22 +490,6 @@ etc\\
 
 \end{definition}
 
-\begin{definition}
-  A derivation step is a pair of expressions such that the second is the result of applying one operation to the first.
-
-  i.e.  $(e_1,e_2)$ is a derivation step iff $\exists \op\in\OPS$ such that $e_2=\op(e_1)$
-
-  For $e_i\in\expr$  we write $e_1 \Rightarrow e_2$ if $(e_1,e_2)$ is a derivation step and say that $e_2$ is \textit{derived from} $e_1$.
-
-  If there is a series of $n$ derivation steps $e_0\Rightarrow e_1 \Rightarrow \dots \Rightarrow e_n$, then we write $e_0\Rightarrow^n e_n$, or, in the general case, $e_0\Rightarrow^* e_n$, and say  $e_n$ is \textit{derived from} $e_0$. 
-
-%  If there is a finite series of derivation steps $(e_0,e_1),(e_1,e_2)...,(e_{n-1},e_n)$ where for each consecutive pair of steps the second element of the first step is the same as the first element of the second step, then we write $e_0\Rightarrow^* e_n$ and say  $e_n$ is \textit{derived from} $e_0$. 
-
-\end{definition}
-
-\begin{definition}[Language defined by (\OPS,\BIGR)]
-$L(\OPS,\BIGR)\subseteq\sg^*$ is the language defined by the grammar (\OPS,\BIGR) defined as follows:   $s\in L(\OPS,\BIGR)$ iff $(\epsilon,\epsilon)\Rightarrow^*s$
-\end{definition}
 
 
 \subsection{Parser}
@@ -515,7 +529,7 @@ The set of all parses of sentence $s$ is written $\PARSES(s)$
 \section{Likelihoods}
 
 \begin{definition}[rule probability assignment]
-A rule probability assignment is an assignment of a probability to each transition of the operations FSA, i.e. $p(q,e,q')$, such that $\sum_{q'}p(q,e,q')=1$, and to each bigram/transition in the Markov chain.
+A rule probability assignment is an assignment of a probability to each transition of the operations FSA, i.e. $p(q,e,q')$, such that $\sum_{e,q'}p(q,e,q')=1$, and to each bigram/transition in the Markov chain.
 \end{definition}
 
 
