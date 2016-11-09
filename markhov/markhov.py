@@ -410,7 +410,7 @@ def possible_transitions(q,fsm):
 
 
 
-def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
+def copy_and_apply_transition(state,t,fsm,bigrams,s,end_mark=False,verbose=False):
     """
     Basically we have an incomplete parse (a parse of an initial segment of a sentence)
     and we try and apply transition t; if this transition is consistent with the string
@@ -437,8 +437,6 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
     Returns (new state, gram) where gram is true if this is a complete, valid parse
     """
 
-    #### TODO Meaghan: remove p from all of this
-    
     #if verbose: print ("copy and apply transition")
     (bis,buf,(qs,ops),k)=state
     new_bis,new_buf,new_qs,new_ops=bis[:],buf[:],qs[:],ops[:] # make a copy
@@ -502,9 +500,20 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
             return None
 
     elif op=='end' and k==n:
-        if verbose: print (" End") # might want to add a ']' here?
-        gram=True # this is grammatical!
+        # if we're tracking good finals, 
+        # we check if the last word in the sentence forms a legal bigram with ]
+        # if so, we add ] to the bigrams used and declare the sentence grammatical
+        if end_mark: 
+            if ']' in bigrams[bis[-1]]:
+                bis.append(']')
+                gram=True
+                if verbose: print (" End")
+
+        else:
+            if verbose: print (" End")
+            gram=True # this is grammatical!
  
+
     #if this wasn't going to work we'd've bailed out by now, 
     #so apply the transition to the FSM record
     new_qs.append(next_state) # add the new state
@@ -518,7 +527,7 @@ def copy_and_apply_transition(state,t,fsm,bigrams,s,verbose=False):
 
 
 
-def parse(s,bigrams,fsm,start='S',verbose=False):
+def parse(s,bigrams,fsm,start='S',end_mark=False,verbose=False):
     """
     Parses a surface string
     We initialise the agenda with a start state,  [ (['['],[],(['S'],[]),1) ]
@@ -566,7 +575,7 @@ def parse(s,bigrams,fsm,start='S',verbose=False):
 
             # Try and apply transition t, which means that we advance the state of our FSA
             # and we check whether this is actually consistent with the string.
-            result = copy_and_apply_transition(task,t,fsm,bigrams,s,verbose) 
+            result = copy_and_apply_transition(task,t,fsm,bigrams,s,end_mark,verbose) 
             if result!=None: # every time we fail to apply a transition, result=None
                 (newtask,gram)=result
                 if gram: # if it's a complete grammatical sentence

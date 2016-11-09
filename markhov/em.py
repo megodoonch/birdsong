@@ -171,7 +171,7 @@ def tcs(route):
 
 ########### parse corpus ############
 
-def parse_corpus(corpus,bigrams,fsa,start='S'):
+def parse_corpus(corpus,bigrams,fsa,start='S',end_mark=False):
     """
     parse the sentences and create a corpus (s,parses,prob s)
 
@@ -195,7 +195,7 @@ def parse_corpus(corpus,bigrams,fsa,start='S'):
     """
     sents = []
     for i,s in enumerate(corpus):
-        parses = markhov.parse(s,bigrams,fsa,start) # parse the sentence
+        parses = markhov.parse(s,bigrams,fsa,start,end_mark) # parse the sentence
         parses = markhov.clean_parses(parses) # just keep (bis,route)
         for (big,(qs,es)) in parses:
             t_counts=tcs((qs,es)) # calculate transition counts
@@ -296,7 +296,7 @@ def expected_state_counts(corpus,parse_probs,fsa,count):
     Compute the expected counts of whatever we ask for
 
     Arguments
-    corpus
+    corpus : parsed corpus
     
 
     count : the thing to count: uc, sc
@@ -444,7 +444,7 @@ def initialise(fsa):
 # set the number of iterations
 N_ITERATIONS = 1
 
-def em(corpus,trans,fsa_struct,n=N_ITERATIONS,sc=0.,elaborate=True,start='S',end='F'):
+def em(corpus,trans,fsa_struct,n=N_ITERATIONS,sc=0.,end_mark=False,elaborate=True,start='S',end='F'):
     
     """
     sc is initialised to 0 here so we can smooth only at the end if we want
@@ -454,7 +454,7 @@ def em(corpus,trans,fsa_struct,n=N_ITERATIONS,sc=0.,elaborate=True,start='S',end
     # Let's do one iteration of EM
 
     # pre-parsed corpus (but no probabilities assigned)
-    corpus=parse_corpus(corpus,trans,fsa_struct,start='S') 
+    corpus=parse_corpus(corpus,trans,fsa_struct,start,end_mark) 
         
     # starting FSA and bigram transitional probabilities
     fsa = initialise(fsa_struct)
@@ -511,14 +511,14 @@ def em(corpus,trans,fsa_struct,n=N_ITERATIONS,sc=0.,elaborate=True,start='S',end
 
 SC=0.01
 
-def em_train(train,test,trans,fsm,n=N_ITERATIONS,presmooth=True,sc=SC,elaborate=True,start='S',end='F'):
+def em_train(train,test,trans,fsm,n=N_ITERATIONS,presmooth=True,sc=SC,end_mark=False,elaborate=True,start='S',end='F'):
     """
     Runs EM once, since that seems to be all we need, on training corpus
      and reports the log likelihoods of the training and testing corpora
 
     Arguments
-    train  : 1/3 of the corpus
-    test   : 2/3 of the corpus
+    train  : some of the corpus
+    test   : the rest of the corpus
     bigram : bigram markhov chain
     fsm    : operations FSM
     start  : start state in fsm
@@ -534,7 +534,7 @@ def em_train(train,test,trans,fsm,n=N_ITERATIONS,presmooth=True,sc=SC,elaborate=
         em_sc=0.
 
     # train
-    history,train=em(train,trans,fsm,n,em_sc,elaborate,start)
+    history,train=em(train,trans,fsm,n,em_sc,end_mark,elaborate,start)
     # extract values from last training cycle
     new_parse_ps = history[-1]['parse_ps']
     new_fsa = history[-1]['fsa']
@@ -550,7 +550,7 @@ def em_train(train,test,trans,fsm,n=N_ITERATIONS,presmooth=True,sc=SC,elaborate=
     print ("LL training corpus: %.2f"%ll_train)
     
     # parse the test corpus with the trained grammar
-    parsed_test = parse_corpus(test,new_trans,new_fsa)
+    parsed_test = parse_corpus(test,new_trans,new_fsa,end_mark)
     # calculate ll test with smoothing    
     ll_test = ll_corpus(parsed_test,new_trans,new_fsa,start,end)
     print ("LL testing corpus: %.2f"%ll_test)
@@ -574,7 +574,7 @@ def em_train(train,test,trans,fsm,n=N_ITERATIONS,presmooth=True,sc=SC,elaborate=
     return ll_test,train,parsed_test,history
         
 
-def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=True,sc=SC,start='S',end='F',verbose=False):
+def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=True,sc=SC,end_mark=False,start='S',end='F',verbose=False):
     """
     Trains two different FSAs and the same bigrams, but seperately, on the training corpus.
     Tests on the test corpus
@@ -598,13 +598,13 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=Tru
 
     print ("\nCopy")
     # train copy grammar
-    ll_copy,parsed_train,parsed_test,history_copy = em_train(train,test,bigrams,fsm_copy,n,presmooth,sc,start,end)
+    ll_copy,parsed_train,parsed_test,history_copy = em_train(train,test,bigrams,fsm_copy,n,presmooth,sc,end_mark,start,end)
     #print ("Copy LL test corpus: %.2f"%ll_copy)
 
     print ("\nNo Copy")
     # train no copy grammar
     # we only need to EM once
-    ll_no_copy,parsed_train,parsed_test,history_no_copy = em_train(train,test,bigrams,fsm_no_copy,2,presmooth,sc,start,end)
+    ll_no_copy,parsed_train,parsed_test,history_no_copy = em_train(train,test,bigrams,fsm_no_copy,2,presmooth,sc,end_mark,start,end)
     #print ("No Copy LL test corpus: %.2f"%ll_no_copy)
 
     # print the difference    
@@ -619,7 +619,7 @@ def compare(train,test,bigrams,fsm_copy,fsm_no_copy,n=N_ITERATIONS,presmooth=Tru
     return (ll_copy,history_copy),(ll_no_copy,history_no_copy)
      
 
-def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth=True,sc=SC,start='S',end='F'):
+def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth=True,sc=SC,end_mark=False,start='S',end='F'):
     """
     divides the corpus into "windows" windows;
     for each window, trains on that window and tests on the remainder
@@ -655,13 +655,13 @@ def windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth=True,sc=SC,start='
 
         # train the grammars and compare the log likelihoods of the test corpus
         # add the result to the right list of results
-        results.append(compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,presmooth,sc,start,end))
+        results.append(compare(train,test,bigrams,fsm_copy,fsm_no_copy,n,presmooth,sc,end_mark,start,end))
         i+=1
 
     return results
 
 
-def iter_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,runs,presmooth=True,sc=SC,start='S',end='F'):
+def iter_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,runs,presmooth=True,sc=SC,end_mark=False,start='S',end='F'):
     """
     Runs windows multiple times, re-initialising the grammar probabilities each time
 
@@ -688,14 +688,14 @@ def iter_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,runs,presmooth=True,sc=
     i=0
     while i<=runs:
         print ("\nRun %i of %i"%(i,runs))
-        results.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth,sc,start,end))
+        results.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,w,presmooth,sc,end_mark,start,end))
         i+=1
 
     return results
 
 
 
-def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=True,sc=SC,start='S',end='F'):
+def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=True,sc=SC,end_mark=False,start='S',end='F'):
     """
     Divides the corpus into 2 windows, then 3, up to max_windows, and runs windows on it
 
@@ -719,7 +719,7 @@ def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=Tru
     while i<=max_windows:
         print ("\nDividing corpus into %i windows"%i)
         # train and test on i windows
-        tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,i,presmooth,sc,start='S',end='F'))
+        tots.append(windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,i,presmooth,sc,end_mark,start='S',end='F'))
         i+=1
     # print a summary of the results
 
@@ -727,7 +727,7 @@ def many_windows(corpus,bigrams,fsm_copy,fsm_no_copy,n,max_windows,presmooth=Tru
         
 
 
-def init_only(corpus,trans,fsm_copy,fsm_no_copy,n,sc=SC,start='S',end='F'):
+def init_only(corpus,trans,fsm_copy,fsm_no_copy,n,sc=SC,end_mark=False,start='S',end='F'):
     """
     Initialises grammars and computes the LL of the corpus
 
@@ -746,8 +746,8 @@ def init_only(corpus,trans,fsm_copy,fsm_no_copy,n,sc=SC,start='S',end='F'):
     """
 
     # pre-parsed corpus (but no probabilities assigned)
-    corpus_c=parse_corpus(corpus,trans,fsm_copy,start) 
-    corpus_nc=parse_corpus(corpus,trans,fsm_no_copy,start) 
+    corpus_c=parse_corpus(corpus,trans,fsm_copy,start,end_mark) 
+    corpus_nc=parse_corpus(corpus,trans,fsm_no_copy,start,end_mark) 
 
     # store the results as we go
     history = []
