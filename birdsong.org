@@ -7,3 +7,6 @@ Birdsong notes
 * General notes
   - Main difference in parser design between M&F: M puts all the functionality (up to and including outside probabilities) into the same CKY chart, while F makes a bunch of separate charts
     - we're not sure if F's approach is better or not.
+
+* Tasks:
+** TODO See where we are with [[file:~/Documents/birdsong/conceptual_smart_stuff.tex][writeup]]
