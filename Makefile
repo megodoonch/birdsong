@@ -21,6 +21,6 @@ conceptual_smart_stuff.pdf: conceptual_smart_stuff.tex
 	pdflatex conceptual_smart_stuff.tex
 
 clean:
-	rm -f readme.html conceptual_smart_stuff.pdf
+	rm -f readme.html conceptual_smart_stuff.pdf *.log *.aux *.synctex.gz
 
 
