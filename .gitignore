@@ -33,4 +33,9 @@ conceptual_smart_stuff.pdf
 conceptual_smart_stuff.synctex.gz
 auto
 
+*.aux
+*.log
+the_math.pdf
+*.synctex.gz
+
 
