@@ -64,6 +64,7 @@
 \newcommand\ed{\text{\textsl{end}}\xspace}
 \newcommand\start{\text{\textsl{start}}\xspace}
 
+
 \newcommand\expr{\text{\textsl{expr}}\xspace}
 \newcommand\Lex{\text{\textsl{Lex}}\xspace}
 \newcommand\fea[1]{\text{\texttt{#1}}\xspace}
@@ -454,10 +455,175 @@ Note that this transducer doesn't enforce all the rules of the grammar. If there
 \end{proof}
 
 
+\subsection{Alexander's way}
+\label{sec:alexanders-way}
+
+\begin{enumerate}
+\item Define IRTG with \OURG algebra
+\item algebra homomorphism H:'OURG \arr DSTA(G) = Dumb ...? an algegra of simple rules for putting together pairs of sets of strings etc like concatenate and wrap (TAGs)
+\item see if IRTGs with DSTA(G) (which requires a non-linear homomorphism) are $\subset$ PMCFG
+\item \OURG \arr DT \arr$_{hom}$ \OURG algebra \arr$_{H}$ DSTA(G) $\subset$ L(PMCFG) 
+\end{enumerate}
+
+\subsubsection{IRTG}
+\label{sec:irtg}
+
+Derivation tree language is regular.
+
+Let  $\Gamma = \{\ed^{(1)},\cp^{(1)},\cl^{(1)},\mg^{(2)}\}\cup\sg^{(0)}\cup\{(\emp,\emp)^{(0)}\}$
+
+$DT \subset T(\Gamma)$ (Terms over a ranked alphabet).
+
+For a given \BIGR, given $t\in T(\Gamma)$, $t\in DT$ iff $t$ is accepted by the non-deterministic BUTA $\mathbb{A}$, defined below.
+
+\begin{definition}[Tree automaton for \OURG with bigrams \BIGR ($\mathbb{A_{\BIGR}}$)]
+  $\mathbb{A} = \la \Gamma, Q, q_f, \Delta\ra$ where:
+  \begin{description}
+
+    
+  \item[alphabet] $\Gamma = \{\ed^{(1)},\cp^{(1)},\cl^{(1)},\mg^{(2)}\}\cup\sg^{(0)}\cup\{(\emp,\emp)^{(0)}\}$
+    
+  \item[states]
+    $Q = \left\{
+    \begin{array}[H]{c l l}
+      & \{\fea{F} , (\LBOUND,\fea{-cl},\fea{-buf})\} & \ed, \start\\
+    \cup & \{\fea{=ab} | (a,b)\in\BIGR \} & \text{lexicon}\\
+    \cup & \{(\fea{x},\alpha\fea{cl}, \beta\fea{buf}) ~|~  x\in\sg, \alpha,\beta\in\{+,-\}& \text{internal nodes}\\
+    \end{array}
+\right\}$
+
+  
+  \item[Final state] $q_f=\fea{F}$
+
+  
+  \item[Transitions]\
+
+    $
+  \begin{array}[H]{r c l l}
+    \Delta & = & \{\la \ed(\fea{(x,-cl,+buf)}), \fea{F}\ra | \fea{x}\in\sg\} & \ed\\
+           & \cup & \{\la b, \fea{=ab}\ra | ((a,b)\in\BIGR)\}& \text{lexical rules}\\
+           & \cup & \{\la (\emp,\emp),((\fea{\LBOUND,-cl,-buf)}) \ra\}& \start\\
+           & \cup & \{\la \cl(\fea{(x,-cl,+buf)}), (\fea{(x,+cl,-buf)})\ra | \fea{x}\in\sg\} & \cl\\
+           & \cup & \{\la ((\fea{x},\alpha\fea{cl,+buf})), (\fea{(x,-cl,+buf)}) \ra | \fea{x}\in\sg, \alpha\in\{+,-\} \} & \cp\\
+           & \cup & \{\la \mg((\fea{x},\alpha\fea{cl},\beta\fea{buf}), \fea{=xy}),(\fea{y},\alpha\fea{cl},+\fea{buf})\ra | \fea{x,y}\in\sg, \alpha,\beta\in\{+,-\} \} & \mg\\
+  \end{array}
+  $
+\end{description}
 
 
+  
+\end{definition}
 
 
+Example run:
+
+\Tree[.\ed~ [.\cp~ [.\mg~ [.\mg~ (\emp,\emp) a ] b ]]] 
+$\Rightarrow$ 
+\Tree[.\ed~ [.\cp~ [.\mg~ [.\mg~ \fea{(\LBOUND,-cl,-buf)} \fea{=\LBOUND a} ] \fea{=ab} ]]] 
+$\Rightarrow$ 
+\Tree[.\ed~ [.\cp~ [.\mg~ \fea{(a,-cl,+buf)}  \fea{=ab} ]]] 
+$\Rightarrow$ 
+\Tree[.\ed~ [.\cp~ \fea{(b,-cl,+buf)} ]] 
+$\Rightarrow$ 
+\Tree[.\ed~ \fea{(b,-cl,+buf)} ] 
+$\Rightarrow$ 
+\Tree[.\fea{F} ] 
+
+Example 2: nondeterminism can lead to bad state choices. We can't get past the lower \mg node.
+
+\Tree[.\ed~ [.\cp~ [.\mg~ [.\mg~ (\emp,\emp) a ] b ]]] 
+$\Rightarrow$ 
+\Tree[.\ed~ [.\cp~ [.\mg~ [.\mg~ \fea{(\LBOUND,-cl,-buf)} \fea{=b a} ] \fea{=ab} ]]] 
+
+
+Example 3: pointless \cl
+
+\Tree[.\ed~ [.\cp~ [.\mg~ (\emp,\emp) a ]]] 
+$\Rightarrow$ 
+\Tree[.\ed~ [.\cl~ [.\mg~ \fea{(\LBOUND,-cl,-buf)} \fea{=\LBOUND a} ]]] 
+$\Rightarrow$ 
+\Tree[.\ed~ [.\cl~  \fea{(a,-cl,+buf)} ]] 
+$\Rightarrow$ 
+\Tree[.\ed~ \fea{(a,+cl,-buf)} ] 
+
+If we show this is in fact a BUTA, and this is in fact the set of derivation trees of \OURG, we've shown the language of derivation trees is regular.
+
+\begin{thm}[Equivalence of $\mathbb{A}$ and \OURG]
+  $L(\mathbb{A}_\BIGR)=\{D(ops,bis,\start) | ops\in L(\OPS),bis\in L(\BIGR)\}$
+\end{thm}
+
+\begin{proof}
+  \begin{enumerate}
+  \item
+    $L(\mathbb{A}_\BIGR)\subseteq\{D(ops,bis,\start) | ops\in L(\OPS),bis\in
+    L(\BIGR)\}$: 
+
+    Let $t\in L(\mathbb{A}_\BIGR)$. Every internal node has arity 1 or is \mg. For all transitions in which the first element is $\mg(q_1,q_2)$, $\exists \fea{x,y}\in\sg$ such that  $(q_2=\fea{=xy}$. The only transitions that have such a state as their second element are the lexical rules, so the second daughter of \mg is always from \sg.
+
+    For all transitions in which the first element is \op(q) for some $\op\in O$, q is a triple. Similarly, for the transitions in which the first element is $\mg(q_1,q_2)$, $q_1$ is a triple. The only transitions that have a triple as their second element are those whose first element is \op(q') for some q' or (\start,\fea{(\LBOUND,-cl,-buf)}). Therefore every element on the path down the only and left daughters is an operation or \start. The only transition in which \start is the first element is a lexical rule, and the only lexical transition in which the second element is a triple is (\start,\fea{(\LBOUND,-cl,-buf)}). Therefore, the path down the only and left daughters is a sequence which consists of all the operations in the tree, followed by \start.
+    All of the right daughters proper are lexical items.
+
+    $t$ is therefore in the domain of $D^{-1}$. 
+
+    $D^{-1}(x) =
+    \begin{cases}
+      (ops,bis) & \IF x=(ops,bis,\start)\\
+      D^{-1}(\emp,\emp,x) & \IF x\in DT\\
+      D^{-1}(\op::ops,bis,t') & \IF x = (\op(t'),ops,bis) \& \op\neq\mg\\
+      D^{-1}(\mg::ops,a::bis,t') & \IF x = (\mg(t',a),ops,bis)\\
+    \end{cases}
+    $
+    
+    $D^{-1}(t) = (ops,bis)$ for some $ops\in O^*, bis\in\sg^*$:
+
+    $D^{-1}(t) = D^{-1}(\emp,\emp,t))$. We already saw that every subtree of $t$ is of the form $\op(t') (\op\in\{\ed,\cp,\cl\})$, or $\mg(t',a) (a\in\sg)$, or $a\in\sg$, or \start, so  $D^{-1}$ is defined for every subtree. Internal nodes are always labelled with operations, so only operations will be added to ops. Items are added to bis when they occur as the second daughter of \mg, which we have seen is always a lexical item. The one and only left daughter that is a leaf is \start, and when that leaf is reached it is the complete tree, triggering the first case, which returns (ops, bis) without adding \start to the list.
+
+    Now we show $(ops,bis)\in L(\OPS)\times L(\BIGR)$ such that $|ops\restriction\mg|=|bis|$. 
+
+    $|ops\restriction\mg|=|bis|$ is clearly true.
+
+    To show that $ops\in L(\OPS)$, note that the feature configurations $\pm\fea{cl}, \pm\fea{buf}$ correspond to states in \OPS.
+
+    \begin{figure}[H]
+      \centering
+      \includegraphics[width=4in]{ops.png}
+      \caption{\OPS}
+      \label{fig:ops}
+    \end{figure}
+    
+    We designed the grammar so that we never copy or clear vacuously. This means that we only copy or clear if there is something in the buffer to copy or clear, and also that we only clear if that act of clearing will define the start of a copy. The former is accomplished by adding a state for when the buffer is empty, from which we can only Merge. The latter is done by adding a new state that we move to when we clear, and from which we can't clear again, nor can we end without first actually copying. When we put these strategies together, we have five states. The start state has no buffer so we can only Merge. From there we go to NotCL, because we have not recently cleared. From here we can do anything, but if we clear, we move to CL$_S$ in which we have cleared (so we can't clear or end) but we also have no buffer so we can't copy either. We Merge and move to CL from which we can't clear or end. If we copy, we move back to NotCL.
+
+In other words, our states are \fea{F} plus the full complement of $\pm$buffer, $\pm$cleared:
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}[H]{c|c  c}
+  & \fea{+clear} &  \fea{-clear}\\
+\hline
+ \fea{+buffer}& CL  & NotCL\\
+ \fea{-buffer}& CL$_S$ & S\\
+\end{tabular}
+\end{table}
+    
+ops[0]=\mg because the only $\mathbb{A}$ transitions with \fea{-buf} in their first element are \mg transitions. $\forall o\in L(\OPS)$, o[0] = \mg since that's the only transition out of the start state S.
+
+ops[-1] = \ed because the only $\mathbb{A}$-transitions to F are for \ed-rooted trees.
+
+Let $C=ops\restriction \{\cp,\cl\}$
+
+Observe the following:
+
+\begin{enumerate}
+\item Only \cl changes \fea{-cl} to \fea{+cl}, meaning the only $\mathbb{A}$-transitions whose first element 
+\end{enumerate}
+
+$C[-1] \neq \cl$: the only $\mathbb{A}$-transitions to F are from states \fea{(x,-cl,+buf)}. \fea{-cl} is only changed to \fea{+cl} by transitions for \cl-rooted trees.  \mg-rooted trees always keep their \fea{cl} value, and \cp-rooted trees always transition to a state with \fea{-cl}. We already saw that every tree has a \start node as its only left leaf, and the state for \start has \fea{-cl}. Therefore any sequence of operations in $t$ that ends with a state with \fea{-cl} either has no \cl nodes -- so the original \fea{-cl} is kept --, or all \cl nodes have a later \cp node that changes the state to \fea{-cl}.
+
+$ \not\exists i<|C|$ s.t. $C[i]=C[i+1]=\cl$: the transition rules for \cl-rooted trees are defined only from states with \fea{-cl}. \mg does not change the value of \fea{cl}, and \cl transitions always end with a \fea{+cl} state. Only \cp higher in the tree can change the \fea{+cl} to \fea{-cl}, making a \cl node possible again.
+
+
+\end{enumerate}
+\end{proof}
 
 \end{document}
 
